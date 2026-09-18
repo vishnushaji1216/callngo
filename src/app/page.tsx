@@ -88,16 +88,15 @@ export default function OwnerDashboard() {
         console.warn('VAPID Key not fully configured. Using mock key for demo setup.');
       }
 
-      // Convert VAPID key to Uint8Array if provided
-      let applicationServerKey: Uint8Array | string = vapidPublicKey || '';
+      // 4. Subscribe with PushManager
+      let applicationServerKey: BufferSource | string | undefined;
       if (vapidPublicKey && !vapidPublicKey.includes('your-vapid')) {
         applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
       }
 
-      // 4. Subscribe with PushManager
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: applicationServerKey || undefined
+        applicationServerKey: applicationServerKey
       });
 
       // 5. Send PushSubscription to POST /api/push/subscribe
@@ -164,7 +163,7 @@ export default function OwnerDashboard() {
               🚗
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">CarConnect Owner Dashboard</h1>
+              <h1 className="text-xl font-bold text-white">CallNGo Owner Dashboard</h1>
               <p className="text-xs text-slate-400">Minimal Proof-of-Concept Control Panel</p>
             </div>
           </div>

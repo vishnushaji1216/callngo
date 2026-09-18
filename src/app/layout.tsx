@@ -5,13 +5,13 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CarConnect - Private Car Calling",
+  title: "CallNGo - Private Car Calling",
   description: "Browser-to-browser private voice calling for car owners without revealing phone numbers",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "CarConnect"
+    title: "CallNGo"
   }
 };
 
