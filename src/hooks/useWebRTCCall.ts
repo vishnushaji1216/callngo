@@ -219,7 +219,7 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       channelRef.current = channel;
     }
 
-    // 2. Subscribe to carId channel (with identical handler so incoming offers trigger modal instantly)
+    // 2. Subscribe to carId channel
     let carChannel: any = null;
     if (carId) {
       carChannel = supabase.channel(`call:${carId}`, {
@@ -307,15 +307,21 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
           remoteAudioRef.current.srcObject = event.streams[0];
           remoteAudioRef.current.play().catch((e) => console.warn('Audio play error:', e));
         }
+        setStatus('connected');
       };
 
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'connected') {
+      const handleConnectionChange = () => {
+        const cState = pc.connectionState;
+        const iceState = pc.iceConnectionState;
+        if (cState === 'connected' || iceState === 'connected' || iceState === 'completed') {
           setStatus('connected');
-        } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        } else if (cState === 'failed' || iceState === 'failed' || cState === 'closed') {
           setStatus('ended');
         }
       };
+
+      pc.onconnectionstatechange = handleConnectionChange;
+      pc.oniceconnectionstatechange = handleConnectionChange;
 
       // 5. Create SDP Offer
       const offer = await pc.createOffer({ offerToReceiveAudio: true });
@@ -414,15 +420,21 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
           remoteAudioRef.current.srcObject = event.streams[0];
           remoteAudioRef.current.play().catch((e) => console.warn('Audio play error:', e));
         }
+        setStatus('connected');
       };
 
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'connected') {
+      const handleConnectionChange = () => {
+        const cState = pc.connectionState;
+        const iceState = pc.iceConnectionState;
+        if (cState === 'connected' || iceState === 'connected' || iceState === 'completed') {
           setStatus('connected');
-        } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        } else if (cState === 'failed' || iceState === 'failed' || cState === 'closed') {
           setStatus('ended');
         }
       };
+
+      pc.onconnectionstatechange = handleConnectionChange;
+      pc.oniceconnectionstatechange = handleConnectionChange;
 
       // Request offer if not yet received
       if (!remoteOfferRef.current) {
@@ -447,6 +459,14 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       });
 
       setStatus('connecting');
+
+      // Auto-transition to connected once descriptions are set & candidates exchange
+      setTimeout(() => {
+        if (pc.remoteDescription && pc.localDescription && pc.signalingState === 'stable') {
+          setStatus('connected');
+        }
+      }, 800);
+
     } catch (err: any) {
       console.error('Error accepting call:', err);
       setStatus('error');
