@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Bell, BellOff, QrCode, ShieldCheck, CheckCircle2, Car, Download, ExternalLink, Smartphone } from 'lucide-react';
+import { Bell, BellOff, QrCode, ShieldCheck, CheckCircle2, Car, Download, ExternalLink, Smartphone, Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
 import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
+import { useWebRTCCall } from '@/hooks/useWebRTCCall';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -31,6 +32,23 @@ export default function OwnerDashboard() {
   const [testCarNickname, setTestCarNickname] = useState<string>('Blue Swift');
 
   const qrContainerRef = useRef<HTMLDivElement>(null);
+
+  // Active Realtime WebRTC listener on Owner Dashboard
+  const {
+    status: callStatus,
+    callId: activeCallId,
+    isMuted,
+    formattedDuration,
+    remoteAudioRef,
+    acceptCall,
+    declineCall,
+    hangUp,
+    toggleMute
+  } = useWebRTCCall({
+    carId: testCarId,
+    role: 'owner',
+    carNickname: testCarNickname
+  });
 
   // Check Auth & SW registration status & set origin
   useEffect(() => {
@@ -71,7 +89,6 @@ export default function OwnerDashboard() {
       canvas.width = 512;
       canvas.height = 512;
       if (ctx) {
-        // Draw white background
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, 512, 512);
         ctx.drawImage(img, 32, 32, 448, 448);
@@ -110,7 +127,10 @@ export default function OwnerDashboard() {
       // 1. Request Notification Permission
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        throw new Error('Notification permission was denied.');
+        if (permission === 'denied') {
+          throw new Error('Notification permission is blocked by your browser. Please tap the lock/tune icon next to the URL in your browser address bar → Permissions → Allow Notifications.');
+        }
+        throw new Error('Notification permission was not granted.');
       }
 
       // 2. Register Service Worker manually
@@ -191,6 +211,90 @@ export default function OwnerDashboard() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 flex flex-col items-center">
+      {/* Hidden Audio Element for WebRTC audio playback */}
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+
+      {/* FULL-SCREEN INCOMING / CONNECTED CALL MODAL */}
+      {(callStatus === 'incoming' || callStatus === 'connecting' || callStatus === 'connected') && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center relative">
+            <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mb-4 text-3xl">
+              🚗
+            </div>
+
+            <h2 className="text-2xl font-bold text-white mb-2">
+              Someone is near your {testCarNickname}
+            </h2>
+
+            {callStatus === 'incoming' && (
+              <div className="w-full py-6 flex flex-col items-center gap-6">
+                <p className="text-sm font-semibold text-emerald-400 animate-pulse">
+                  Incoming Voice Call...
+                </p>
+
+                <div className="flex items-center justify-center gap-6 w-full">
+                  <button
+                    onClick={() => declineCall(activeCallId)}
+                    className="flex-1 py-4 rounded-2xl bg-red-950/80 border border-red-500/40 hover:bg-red-900/50 text-red-300 font-semibold text-base transition flex items-center justify-center gap-2"
+                  >
+                    <PhoneOff className="w-5 h-5" />
+                    Decline
+                  </button>
+
+                  <button
+                    onClick={() => acceptCall(activeCallId)}
+                    className="flex-1 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95"
+                  >
+                    <Phone className="w-5 h-5" />
+                    Accept
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {callStatus === 'connecting' && (
+              <div className="py-6 flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-slate-300 text-sm">Connecting audio stream...</p>
+              </div>
+            )}
+
+            {callStatus === 'connected' && (
+              <div className="w-full py-4 flex flex-col items-center gap-6">
+                <div className="flex flex-col items-center gap-1">
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold uppercase tracking-wider border border-emerald-500/30">
+                    Connected
+                  </span>
+                  <span className="text-3xl font-mono font-bold text-white mt-2">
+                    {formattedDuration}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-center gap-6 w-full">
+                  <button
+                    onClick={toggleMute}
+                    className={`w-14 h-14 rounded-full flex items-center justify-center border transition ${
+                      isMuted
+                        ? 'bg-amber-600/20 border-amber-500 text-amber-400'
+                        : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                    }`}
+                  >
+                    {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                  </button>
+
+                  <button
+                    onClick={hangUp}
+                    className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-600/30 transition active:scale-95"
+                  >
+                    <PhoneOff className="w-7 h-7" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-3xl space-y-6">
         
         {/* Header */}
