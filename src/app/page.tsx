@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Bell, BellOff, QrCode, ShieldCheck, CheckCircle2, Car, Download, ExternalLink, Smartphone, Phone, PhoneOff, Mic, MicOff, UserCheck, LogOut, Lock, Mail, User, Plus, MessageSquare } from 'lucide-react';
+import { Bell, BellOff, QrCode, ShieldCheck, CheckCircle2, Car, Download, ExternalLink, Smartphone, Phone, PhoneOff, Mic, MicOff, LogOut, Lock, Mail, User, Plus, MessageSquare } from 'lucide-react';
 import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
@@ -32,18 +32,15 @@ export default function OwnerDashboard() {
   const [fullName, setFullName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [carNickname, setCarNickname] = useState<string>('Blue Swift');
+  const [carNickname, setCarNickname] = useState<string>('My Vehicle');
   const [submittingAuth, setSubmittingAuth] = useState<boolean>(false);
 
-  // Active Registered Car
-  const [activeCar, setActiveCar] = useState<{ id: string; nickname: string } | null>({
-    id: 'c9b1a8f0-1234-5678-9abc-def012345678',
-    nickname: 'Blue Swift'
-  });
+  // Active Registered Car for the Logged In User
+  const [activeCar, setActiveCar] = useState<{ id: string; nickname: string } | null>(null);
 
   const qrContainerRef = useRef<HTMLDivElement>(null);
 
-  // Active Realtime WebRTC listener on Owner Dashboard
+  // Active Realtime WebRTC listener on Owner Dashboard for logged-in user's car
   const {
     status: callStatus,
     callId: activeCallId,
@@ -55,26 +52,45 @@ export default function OwnerDashboard() {
     hangUp,
     toggleMute
   } = useWebRTCCall({
-    carId: activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678',
+    carId: activeCar?.id || '',
     role: 'owner',
-    carNickname: activeCar?.nickname || 'Blue Swift'
+    carNickname: activeCar?.nickname || 'Vehicle'
   });
 
-  // Fetch Owner Cars Helper
-  const fetchOwnerCars = async (ownerId: string) => {
+  // Fetch or Auto-Create Owner Car Helper
+  const syncOwnerCar = async (ownerId: string, preferredNickname?: string) => {
     try {
-      const { data, error } = await supabase
+      // 1. Check existing cars for this owner
+      const { data: cars, error } = await supabase
         .from('cars')
         .select('id, nickname')
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        setActiveCar({ id: data[0].id, nickname: data[0].nickname });
+      if (!error && cars && cars.length > 0) {
+        setActiveCar({ id: cars[0].id, nickname: cars[0].nickname });
+        return cars[0];
+      }
+
+      // 2. If no car exists, create a unique car for this owner
+      const newNickname = preferredNickname || 'My Vehicle';
+      const { data: newCar, error: createError } = await supabase
+        .from('cars')
+        .insert({
+          owner_id: ownerId,
+          nickname: newNickname
+        })
+        .select()
+        .single();
+
+      if (!createError && newCar) {
+        setActiveCar({ id: newCar.id, nickname: newCar.nickname });
+        return newCar;
       }
     } catch (e) {
-      console.warn('Failed to fetch owner cars:', e);
+      console.warn('Error syncing owner car:', e);
     }
+    return null;
   };
 
   // Check Auth & SW registration status & set origin
@@ -85,7 +101,7 @@ export default function OwnerDashboard() {
       const currentUser = data.user;
       setUser(currentUser);
       if (currentUser) {
-        fetchOwnerCars(currentUser.id);
+        syncOwnerCar(currentUser.id);
       }
       setLoading(false);
     });
@@ -103,10 +119,10 @@ export default function OwnerDashboard() {
     }
   }, []);
 
-  // Full QR URL
-  const qrUrl = `${origin || 'http://localhost:3000'}/c/${activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678'}`;
+  // Full QR URL for this specific user's car
+  const qrUrl = activeCar?.id ? `${origin || 'http://localhost:3000'}/c/${activeCar.id}` : '';
 
-  // Download QR code as PNG image matching the exact reference card design
+  // Download QR code as PNG image
   const handleDownloadQR = () => {
     const svgElement = qrContainerRef.current?.querySelector('svg');
     if (!svgElement) return;
@@ -120,24 +136,19 @@ export default function OwnerDashboard() {
       canvas.width = 800;
       canvas.height = 500;
       if (ctx) {
-        // Draw Left Chocolate Brown Panel
         ctx.fillStyle = '#2C1812';
         ctx.fillRect(0, 0, 420, 500);
 
-        // Draw Right Cream Panel
         ctx.fillStyle = '#EAE7D7';
         ctx.fillRect(420, 0, 380, 500);
 
-        // Header Text: CALL N GO
         ctx.fillStyle = '#2A160F';
         ctx.font = 'bold 24px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('C A L L  N  G O', 610, 50);
 
-        // Draw QR Code onto Right Panel
         ctx.drawImage(img, 470, 70, 280, 280);
 
-        // Footer Pill Badge callngo.app
         ctx.fillStyle = '#2A1711';
         ctx.beginPath();
         ctx.roundRect(550, 390, 120, 34, 17);
@@ -147,16 +158,13 @@ export default function OwnerDashboard() {
         ctx.font = 'bold 14px sans-serif';
         ctx.fillText('callngo.app', 610, 412);
 
-        // Left Panel Text Content
         ctx.fillStyle = '#F5F2E6';
         ctx.textAlign = 'left';
 
-        // Title
         ctx.font = 'bold 20px serif';
         ctx.fillText('Scan the QR', 60, 140);
         ctx.fillText('connect the owner', 60, 170);
 
-        // Underline
         ctx.strokeStyle = '#F5F2E6';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -164,7 +172,6 @@ export default function OwnerDashboard() {
         ctx.lineTo(260, 178);
         ctx.stroke();
 
-        // Call/Message Pill
         ctx.fillStyle = '#F9F7EF';
         ctx.beginPath();
         ctx.roundRect(60, 210, 280, 44, 22);
@@ -174,7 +181,6 @@ export default function OwnerDashboard() {
         ctx.font = 'bold 16px sans-serif';
         ctx.fillText('📞 Call   ✉️ Message', 100, 238);
 
-        // Bullet Points
         ctx.fillStyle = '#F5F2E6';
         ctx.font = '16px serif';
         ctx.fillText('• Please move your car', 60, 300);
@@ -185,7 +191,7 @@ export default function OwnerDashboard() {
 
       const pngFile = canvas.toDataURL('image/png');
       const downloadLink = document.createElement('a');
-      const filename = activeCar?.nickname ? activeCar.nickname.toLowerCase().replace(/\s+/g, '-') : 'blue-swift';
+      const filename = activeCar?.nickname ? activeCar.nickname.toLowerCase().replace(/\s+/g, '-') : 'car';
       downloadLink.download = `callngo-card-${filename}.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
@@ -227,24 +233,8 @@ export default function OwnerDashboard() {
         full_name: fullName
       });
 
-      // 3. Insert Car
-      const { data: carData, error: carError } = await supabase
-        .from('cars')
-        .insert({
-          owner_id: newUser.id,
-          nickname: carNickname
-        })
-        .select()
-        .single();
-
-      if (!carError && carData) {
-        setActiveCar({ id: carData.id, nickname: carData.nickname });
-      } else {
-        setActiveCar({
-          id: 'c9b1a8f0-1234-5678-9abc-def012345678',
-          nickname: carNickname
-        });
-      }
+      // 3. Create Unique Car for User
+      await syncOwnerCar(newUser.id, carNickname);
 
       setMessage({ type: 'success', text: `Welcome ${fullName}! Your car "${carNickname}" has been registered.` });
     } catch (err: any) {
@@ -277,7 +267,7 @@ export default function OwnerDashboard() {
 
       const currentUser = authData.user;
       setUser(currentUser);
-      await fetchOwnerCars(currentUser.id);
+      await syncOwnerCar(currentUser.id);
       setMessage({ type: 'success', text: 'Logged in successfully!' });
     } catch (err: any) {
       console.error('Sign in error:', err);
@@ -293,8 +283,12 @@ export default function OwnerDashboard() {
     if (error) {
       setMessage({ type: 'error', text: error.message });
     } else {
-      setUser(data.user);
-      setMessage({ type: 'success', text: 'Logged in anonymously as car owner' });
+      const currentUser = data.user;
+      setUser(currentUser);
+      if (currentUser) {
+        await syncOwnerCar(currentUser.id, 'Demo Swift');
+      }
+      setMessage({ type: 'success', text: 'Logged in as car owner' });
     }
   };
 
@@ -302,6 +296,7 @@ export default function OwnerDashboard() {
   const handleLogOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setActiveCar(null);
     setMessage({ type: 'success', text: 'Logged out.' });
   };
 
@@ -310,6 +305,10 @@ export default function OwnerDashboard() {
     try {
       setPushLoading(true);
       setMessage(null);
+
+      if (!user) {
+        throw new Error('You must be logged in to enable call alerts.');
+      }
 
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         throw new Error('Push notifications are not supported in this browser.');
@@ -347,13 +346,13 @@ export default function OwnerDashboard() {
         applicationServerKey: applicationServerKey
       });
 
-      // 5. Send PushSubscription to POST /api/push/subscribe
+      // 5. Send PushSubscription to POST /api/push/subscribe linked to user.id
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subscription: subscription.toJSON(),
-          ownerId: user?.id || null
+          ownerId: user.id
         })
       });
 
@@ -414,7 +413,7 @@ export default function OwnerDashboard() {
             </div>
 
             <h2 className="text-2xl font-bold text-[#f4efe6] mb-2 font-serif">
-              Someone is near your {activeCar?.nickname || 'car'}
+              Someone is near your {activeCar?.nickname || 'vehicle'}
             </h2>
 
             {callStatus === 'incoming' && (
@@ -560,7 +559,7 @@ export default function OwnerDashboard() {
                     Logged in as {user.email || user.user_metadata?.full_name || 'Car Owner'}
                   </p>
                   <p className="text-xs text-[#bfaea0] mt-0.5 font-mono">
-                    ID: {user.id}
+                    Owner ID: {user.id}
                   </p>
                 </div>
               </div>
@@ -654,7 +653,7 @@ export default function OwnerDashboard() {
                           required
                           value={carNickname}
                           onChange={(e) => setCarNickname(e.target.value)}
-                          placeholder="e.g. Blue Swift"
+                          placeholder="e.g. My Blue Swift"
                           className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1e140f] border border-[#3e241b] text-white text-sm focus:outline-none focus:border-[#d4a254]"
                         />
                       </div>
@@ -737,166 +736,175 @@ export default function OwnerDashboard() {
           )}
         </section>
 
-        {/* 2. Web Push Configuration Card */}
-        <section className="bg-[#2b1812]/70 border border-[#3e241b] p-6 rounded-3xl space-y-4 shadow-xl">
-          <h2 className="text-lg font-bold text-[#f4efe6] flex items-center gap-2 font-serif">
-            <Bell className="w-5 h-5 text-[#d4a254]" />
-            2. Web Push Call Alerts
-          </h2>
-
-          <div className="p-4 rounded-2xl bg-[#160f0b]/70 border border-[#3e241b] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-sm font-semibold text-[#f4efe6]">
-                Call Alerts Status: {pushEnabled ? 'Active' : 'Disabled'}
-              </h3>
-              <p className="text-xs text-[#d8cfc4] mt-1 max-w-md">
-                Subscribes this device to receive push alerts when callers scan your QR code sticker.
-              </p>
-            </div>
-
-            {pushEnabled ? (
-              <button
-                onClick={handleDisableCallAlerts}
-                disabled={pushLoading}
-                className="px-5 py-2.5 rounded-xl bg-[#1b0e09] hover:bg-[#23130d] border border-[#3e241b] text-[#e2dacd] font-semibold text-sm transition"
-              >
-                Disable Call Alerts
-              </button>
-            ) : (
-              <button
-                onClick={handleEnableCallAlerts}
-                disabled={pushLoading}
-                className="px-6 py-3 rounded-xl bg-[#d4a254] hover:bg-[#c59343] text-[#160f0b] font-bold text-sm transition shadow-lg shadow-[#d4a254]/20 flex items-center gap-2"
-              >
-                <Bell className="w-4 h-4" />
-                {pushLoading ? 'Enabling...' : 'Enable Call Alerts'}
-              </button>
-            )}
-          </div>
-        </section>
-
-        {/* 3. PHYSICAL PRINTABLE STICKER CARD (MATCHING USER REFERENCE DESIGN) */}
-        <section className="bg-[#2b1812]/70 border border-[#3e241b] p-6 rounded-3xl space-y-4 shadow-xl">
-          <div className="flex items-center justify-between">
+        {/* 2. Web Push Configuration Card (Visible only when user is logged in) */}
+        {user && (
+          <section className="bg-[#2b1812]/70 border border-[#3e241b] p-6 rounded-3xl space-y-4 shadow-xl">
             <h2 className="text-lg font-bold text-[#f4efe6] flex items-center gap-2 font-serif">
-              <QrCode className="w-5 h-5 text-[#d4a254]" />
-              3. Printable Vehicle QR Card (Reference Design)
+              <Bell className="w-5 h-5 text-[#d4a254]" />
+              2. Web Push Call Alerts
             </h2>
 
-            <button
-              onClick={handleDownloadQR}
-              className="px-4 py-2 rounded-xl bg-[#d4a254] hover:bg-[#c59343] text-[#160f0b] font-bold text-xs transition flex items-center gap-2 shadow-md shadow-[#d4a254]/20"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Download Printable Card PNG
-            </button>
-          </div>
-
-          {/* PHYSICAL DUAL-PANEL CARD CONTAINER (MIRRORS REFERENCE STICKER DESIGN) */}
-          <div className="w-full rounded-3xl overflow-hidden border border-[#523326] shadow-2xl flex flex-col md:flex-row">
-            
-            {/* LEFT PANEL: Deep Chocolate Brown with Line Art & Instructions */}
-            <div className="md:w-1/2 bg-[#2A1812] p-8 text-[#F5F2E6] flex flex-col items-center text-center justify-between border-b md:border-b-0 md:border-r border-[#3D231A]">
-              
-              {/* Car Wheel Line-Art Icon */}
-              <div className="w-24 h-24 rounded-full border-2 border-[#D4A254]/40 flex items-center justify-center bg-[#1E0F0A]/60 shadow-inner mb-4">
-                <svg className="w-16 h-16 text-[#D4A254]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <circle cx="12" cy="12" r="9" />
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M12 3v6M12 15v6M3 12h6M15 12h6M5.6 5.6l4.3 4.3M14.1 14.1l4.3 4.3M5.6 18.4l4.3-4.3M14.1 9.9l4.3-4.3" />
-                </svg>
-              </div>
-
-              {/* Tagline */}
-              <div className="mb-6">
-                <h3 className="text-xl sm:text-2xl font-bold font-serif tracking-wide text-[#F5F2E6]">
-                  Scan the QR
+            <div className="p-4 rounded-2xl bg-[#160f0b]/70 border border-[#3e241b] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-[#f4efe6]">
+                  Call Alerts Status: {pushEnabled ? 'Active' : 'Disabled'}
                 </h3>
-                <h3 className="text-xl sm:text-2xl font-bold font-serif tracking-wide text-[#F5F2E6] underline underline-offset-4 decoration-[#D4A254]">
-                  connect the owner
-                </h3>
+                <p className="text-xs text-[#d8cfc4] mt-1 max-w-md">
+                  Subscribes this device to receive push alerts when callers scan your QR code sticker.
+                </p>
               </div>
 
-              {/* Call / Message Pill Badge */}
-              <div className="px-6 py-2.5 rounded-full bg-[#F9F7EF] text-[#2A160F] font-bold text-sm flex items-center gap-4 shadow-md mb-6 border border-[#EBE8D8]">
-                <span className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-[#2A160F]" /> Call</span>
-                <span className="text-[#8F7A6B]">|</span>
-                <span className="flex items-center gap-1.5"><MessageSquare className="w-4 h-4 text-[#2A160F]" /> Message</span>
-              </div>
-
-              {/* Bulleted Reason List */}
-              <ul className="text-left text-sm space-y-2 text-[#E2DACD] font-serif w-full max-w-xs">
-                <li className="flex items-start gap-2">
-                  <span className="text-[#D4A254] font-bold">•</span>
-                  <span>Please move your car</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#D4A254] font-bold">•</span>
-                  <span>Your headlight is on</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#D4A254] font-bold">•</span>
-                  <span>call incase of accident</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#D4A254] font-bold">•</span>
-                  <span>Your vehicle is in my way</span>
-                </li>
-              </ul>
+              {pushEnabled ? (
+                <button
+                  onClick={handleDisableCallAlerts}
+                  disabled={pushLoading}
+                  className="px-5 py-2.5 rounded-xl bg-[#1b0e09] hover:bg-[#23130d] border border-[#3e241b] text-[#e2dacd] font-semibold text-sm transition"
+                >
+                  Disable Call Alerts
+                </button>
+              ) : (
+                <button
+                  onClick={handleEnableCallAlerts}
+                  disabled={pushLoading}
+                  className="px-6 py-3 rounded-xl bg-[#d4a254] hover:bg-[#c59343] text-[#160f0b] font-bold text-sm transition shadow-lg shadow-[#d4a254]/20 flex items-center gap-2"
+                >
+                  <Bell className="w-4 h-4" />
+                  {pushLoading ? 'Enabling...' : 'Enable Call Alerts'}
+                </button>
+              )}
             </div>
+          </section>
+        )}
 
-            {/* RIGHT PANEL: Light Vintage Cream Background with QR Code */}
-            <div className="md:w-1/2 bg-[#EAE7D7] p-8 text-[#2A160F] flex flex-col items-center justify-between text-center min-h-[380px]">
-              
-              {/* Spaced Brand Title */}
-              <div className="text-2xl font-bold tracking-[0.3em] font-mono text-[#2A160F] uppercase mt-2">
-                C A L L N G O
+        {/* 3. PHYSICAL PRINTABLE STICKER CARD (Strictly visible ONLY when logged in) */}
+        {user && activeCar && (
+          <section className="bg-[#2b1812]/70 border border-[#3e241b] p-6 rounded-3xl space-y-4 shadow-xl animate-in fade-in duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-[#f4efe6] flex items-center gap-2 font-serif">
+                  <QrCode className="w-5 h-5 text-[#d4a254]" />
+                  3. Your Unique Vehicle QR Card
+                </h2>
+                <p className="text-xs text-[#d8cfc4] mt-0.5">
+                  Linked exclusively to your car ({activeCar.nickname}) • Car ID: <code className="text-[#d4a254] font-mono">{activeCar.id}</code>
+                </p>
               </div>
 
-              {/* Center QR Code */}
-              <div
-                ref={qrContainerRef}
-                className="p-4 bg-[#EAE7D7] rounded-2xl flex items-center justify-center shadow-inner"
+              <button
+                onClick={handleDownloadQR}
+                className="px-4 py-2 rounded-xl bg-[#d4a254] hover:bg-[#c59343] text-[#160f0b] font-bold text-xs transition flex items-center gap-2 shadow-md shadow-[#d4a254]/20"
               >
-                <QRCodeSVG
-                  value={qrUrl}
-                  size={190}
-                  bgColor="#EAE7D7"
-                  fgColor="#2A160F"
-                  level="H"
-                  marginSize={1}
-                />
+                <Download className="w-3.5 h-3.5" />
+                Download Printable Card PNG
+              </button>
+            </div>
+
+            {/* PHYSICAL DUAL-PANEL CARD CONTAINER */}
+            <div className="w-full rounded-3xl overflow-hidden border border-[#523326] shadow-2xl flex flex-col md:flex-row">
+              
+              {/* LEFT PANEL */}
+              <div className="md:w-1/2 bg-[#2A1812] p-8 text-[#F5F2E6] flex flex-col items-center text-center justify-between border-b md:border-b-0 md:border-r border-[#3D231A]">
+                
+                {/* Car Wheel Line-Art Icon */}
+                <div className="w-24 h-24 rounded-full border-2 border-[#D4A254]/40 flex items-center justify-center bg-[#1E0F0A]/60 shadow-inner mb-4">
+                  <svg className="w-16 h-16 text-[#D4A254]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <circle cx="12" cy="12" r="9" />
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 3v6M12 15v6M3 12h6M15 12h6M5.6 5.6l4.3 4.3M14.1 14.1l4.3 4.3M5.6 18.4l4.3-4.3M14.1 9.9l4.3-4.3" />
+                  </svg>
+                </div>
+
+                {/* Tagline */}
+                <div className="mb-6">
+                  <h3 className="text-xl sm:text-2xl font-bold font-serif tracking-wide text-[#F5F2E6]">
+                    Scan the QR
+                  </h3>
+                  <h3 className="text-xl sm:text-2xl font-bold font-serif tracking-wide text-[#F5F2E6] underline underline-offset-4 decoration-[#D4A254]">
+                    connect the owner
+                  </h3>
+                </div>
+
+                {/* Call / Message Pill Badge */}
+                <div className="px-6 py-2.5 rounded-full bg-[#F9F7EF] text-[#2A160F] font-bold text-sm flex items-center gap-4 shadow-md mb-6 border border-[#EBE8D8]">
+                  <span className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-[#2A160F]" /> Call</span>
+                  <span className="text-[#8F7A6B]">|</span>
+                  <span className="flex items-center gap-1.5"><MessageSquare className="w-4 h-4 text-[#2A160F]" /> Message</span>
+                </div>
+
+                {/* Bulleted Reason List */}
+                <ul className="text-left text-sm space-y-2 text-[#E2DACD] font-serif w-full max-w-xs">
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#D4A254] font-bold">•</span>
+                    <span>Please move your car</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#D4A254] font-bold">•</span>
+                    <span>Your headlight is on</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#D4A254] font-bold">•</span>
+                    <span>call incase of accident</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#D4A254] font-bold">•</span>
+                    <span>Your vehicle is in my way</span>
+                  </li>
+                </ul>
               </div>
 
-              {/* Domain Footer Badge */}
-              <div className="mt-2">
-                <span className="px-5 py-1.5 rounded-full bg-[#2A1711] text-[#EAE7D7] text-xs font-bold tracking-wider font-mono">
-                  callngo.app
-                </span>
+              {/* RIGHT PANEL: Light Vintage Cream Background with User-Specific QR Code */}
+              <div className="md:w-1/2 bg-[#EAE7D7] p-8 text-[#2A160F] flex flex-col items-center justify-between text-center min-h-[380px]">
+                
+                {/* Spaced Brand Title */}
+                <div className="text-2xl font-bold tracking-[0.3em] font-mono text-[#2A160F] uppercase mt-2">
+                  C A L L N G O
+                </div>
+
+                {/* Center User-Specific QR Code */}
+                <div
+                  ref={qrContainerRef}
+                  className="p-4 bg-[#EAE7D7] rounded-2xl flex items-center justify-center shadow-inner"
+                >
+                  <QRCodeSVG
+                    value={qrUrl}
+                    size={190}
+                    bgColor="#EAE7D7"
+                    fgColor="#2A160F"
+                    level="H"
+                    marginSize={1}
+                  />
+                </div>
+
+                {/* Domain Footer Badge */}
+                <div className="mt-2">
+                  <span className="px-5 py-1.5 rounded-full bg-[#2A1711] text-[#EAE7D7] text-xs font-bold tracking-wider font-mono">
+                    callngo.app
+                  </span>
+                </div>
+
               </div>
 
             </div>
 
-          </div>
+            {/* Quick Direct Link Bar */}
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-3 text-xs text-[#d8cfc4]">
+              <span className="flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-[#d4a254]" />
+                Vehicle: <strong className="text-white">{activeCar.nickname}</strong>
+              </span>
 
-          {/* Quick Direct Link Bar */}
-          <div className="pt-2 flex flex-wrap items-center justify-between gap-3 text-xs text-[#d8cfc4]">
-            <span className="flex items-center gap-1.5">
-              <Smartphone className="w-4 h-4 text-[#d4a254]" />
-              Vehicle: <strong className="text-white">{activeCar?.nickname || 'Blue Swift'}</strong>
-            </span>
+              <Link
+                href={`/c/${activeCar.id}`}
+                target="_blank"
+                className="px-4 py-2 rounded-xl bg-[#1b0e09] hover:bg-[#23130d] text-[#d4a254] border border-[#3e241b] font-semibold transition flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open Live Caller Page
+              </Link>
+            </div>
 
-            <Link
-              href={`/c/${activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678'}`}
-              target="_blank"
-              className="px-4 py-2 rounded-xl bg-[#1b0e09] hover:bg-[#23130d] text-[#d4a254] border border-[#3e241b] font-semibold transition flex items-center gap-1.5"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              Open Live Caller Page
-            </Link>
-          </div>
-
-        </section>
+          </section>
+        )}
 
       </div>
     </main>
