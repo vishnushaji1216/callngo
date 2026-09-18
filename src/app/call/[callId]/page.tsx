@@ -12,7 +12,7 @@ export default function OwnerCallPage({ params }: { params: Promise<{ callId: st
   const searchParams = useSearchParams();
   const initialAction = searchParams.get('action'); // 'accept' or 'decline'
 
-  const [carId, setCarId] = useState<string>('demo-car-id');
+  const [carId, setCarId] = useState<string>('c9b1a8f0-1234-5678-9abc-def012345678');
   const [carNickname, setCarNickname] = useState<string>('Blue Swift');
 
   const {

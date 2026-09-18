@@ -31,8 +31,12 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const channelRef = useRef<any>(null);
+  const carChannelRef = useRef<any>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const localOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const remoteOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
 
   // Helper to fetch ICE servers from server
   const getIceServers = async (): Promise<RTCIceServer[]> => {
@@ -64,9 +68,12 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
+    pendingCandidatesRef.current = [];
+    localOfferRef.current = null;
+    remoteOfferRef.current = null;
   }, []);
 
-  // Broadcast signaling message helper
+  // Broadcast signaling message helper over both active callId channel & carId channel
   const sendSignal = useCallback((payload: any) => {
     if (channelRef.current) {
       channelRef.current.send({
@@ -75,100 +82,157 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
         payload
       });
     }
+    if (carChannelRef.current) {
+      carChannelRef.current.send({
+        type: 'broadcast',
+        event: 'signal',
+        payload
+      });
+    }
   }, []);
 
-  // Initialize Realtime channel subscription
+  // Helper to drain buffered ICE candidates
+  const drainIceCandidates = async (pc: RTCPeerConnection) => {
+    while (pendingCandidatesRef.current.length > 0) {
+      const candidate = pendingCandidatesRef.current.shift();
+      if (candidate) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error('Error adding drained candidate:', e);
+        }
+      }
+    }
+  };
+
+  // Initialize Realtime channel subscriptions for BOTH callId AND carId
   useEffect(() => {
-    if (!carId) return;
+    const activeId = callId || initialCallId;
+    if (!activeId && !carId) return;
 
-    const channelName = `call:${carId}`;
-    const channel = supabase.channel(channelName, {
-      config: { broadcast: { self: false } }
-    });
-
-    channel
-      .on('broadcast', { event: 'signal' }, async ({ payload }) => {
-        if (!payload || !payload.callId) return;
-
-        // Ignore messages for other calls if callId is already set
-        if (callId && payload.callId !== callId && payload.type !== 'offer') {
-          return;
-        }
-
-        const msgCallId = payload.callId;
-
-        switch (payload.type) {
-          case 'offer':
-            if (role === 'owner' && (status === 'idle' || status === 'incoming')) {
-              setCallId(msgCallId);
-              setStatus('incoming');
-              // Store offer SDP for accepting
-              if (peerConnectionRef.current) {
-                try {
-                  await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-                } catch (e) {
-                  console.error('Error setting remote offer:', e);
-                }
-              }
-            }
-            break;
-
-          case 'answer':
-            if (role === 'caller' && payload.callId === callId) {
-              if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
-              }
-              if (peerConnectionRef.current) {
-                try {
-                  await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-                  setStatus('connected');
-                } catch (e) {
-                  console.error('Error setting remote answer:', e);
-                }
-              }
-            }
-            break;
-
-          case 'ice-candidate':
-            if (payload.callId === (callId || msgCallId) && payload.candidate) {
-              if (peerConnectionRef.current) {
-                try {
-                  await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                } catch (e) {
-                  console.error('Error adding ICE candidate:', e);
-                }
-              }
-            }
-            break;
-
-          case 'decline':
-            if (payload.callId === callId) {
-              setStatus('declined');
-              cleanup();
-            }
-            break;
-
-          case 'hangup':
-            if (payload.callId === callId) {
-              setStatus('ended');
-              cleanup();
-            }
-            break;
-        }
-      })
-      .subscribe((subStatus) => {
-        if (subStatus === 'SUBSCRIBED') {
-          console.log(`Subscribed to Realtime channel call:${carId}`);
-        }
+    // 1. Subscribe to specific callId channel if active
+    let channel: any = null;
+    if (activeId) {
+      const channelName = `call:${activeId}`;
+      channel = supabase.channel(channelName, {
+        config: { broadcast: { self: false } }
       });
 
-    channelRef.current = channel;
+      channel
+        .on('broadcast', { event: 'signal' }, async ({ payload }: { payload: any }) => {
+          if (!payload || !payload.callId) return;
+
+          switch (payload.type) {
+            case 'owner-ready':
+              if (role === 'caller' && localOfferRef.current) {
+                // Owner just opened the page, re-broadcast offer
+                sendSignal({
+                  type: 'offer',
+                  callId: activeId,
+                  sdp: localOfferRef.current
+                });
+              }
+              break;
+
+            case 'request-offer':
+              if (role === 'caller' && localOfferRef.current) {
+                sendSignal({
+                  type: 'offer',
+                  callId: activeId,
+                  sdp: localOfferRef.current
+                });
+              }
+              break;
+
+            case 'offer':
+              if (role === 'owner') {
+                remoteOfferRef.current = payload.sdp;
+                if (peerConnectionRef.current && peerConnectionRef.current.signalingState === 'stable') {
+                  try {
+                    await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+                    await drainIceCandidates(peerConnectionRef.current);
+                  } catch (e) {
+                    console.error('Error setting remote offer:', e);
+                  }
+                }
+                if (status === 'idle') {
+                  setStatus('incoming');
+                }
+              }
+              break;
+
+            case 'answer':
+              if (role === 'caller') {
+                if (timeoutRef.current) {
+                  clearTimeout(timeoutRef.current);
+                  timeoutRef.current = null;
+                }
+                if (peerConnectionRef.current) {
+                  try {
+                    await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+                    await drainIceCandidates(peerConnectionRef.current);
+                    setStatus('connected');
+                  } catch (e) {
+                    console.error('Error setting remote answer:', e);
+                  }
+                }
+              }
+              break;
+
+            case 'ice-candidate':
+              if (payload.candidate) {
+                if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
+                  try {
+                    await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                  } catch (e) {
+                    console.error('Error adding ICE candidate:', e);
+                  }
+                } else {
+                  pendingCandidatesRef.current.push(payload.candidate);
+                }
+              }
+              break;
+
+            case 'decline':
+              setStatus('declined');
+              cleanup();
+              break;
+
+            case 'hangup':
+              setStatus('ended');
+              cleanup();
+              break;
+          }
+        })
+        .subscribe((subStatus: string) => {
+          if (subStatus === 'SUBSCRIBED' && role === 'owner') {
+            // Signal caller that owner is connected and ready for offer
+            channel.send({
+              type: 'broadcast',
+              event: 'signal',
+              payload: { type: 'owner-ready', callId: activeId }
+            });
+          }
+        });
+
+      channelRef.current = channel;
+    }
+
+    // 2. Subscribe to carId channel
+    let carChannel: any = null;
+    if (carId) {
+      carChannel = supabase.channel(`car:${carId}`, {
+        config: { broadcast: { self: false } }
+      });
+      carChannel.subscribe();
+      carChannelRef.current = carChannel;
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
+      if (carChannel) supabase.removeChannel(carChannel);
     };
-  }, [carId, callId, role, status, cleanup]);
+  }, [carId, callId, initialCallId, role, sendSignal, status, cleanup]);
 
   // Duration Timer for connected state
   useEffect(() => {
@@ -236,6 +300,7 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       pc.ontrack = (event) => {
         if (remoteAudioRef.current && event.streams[0]) {
           remoteAudioRef.current.srcObject = event.streams[0];
+          remoteAudioRef.current.play().catch((e) => console.warn('Audio play error:', e));
         }
       };
 
@@ -248,10 +313,9 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       };
 
       // 5. Create SDP Offer
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true
-      });
+      const offer = await pc.createOffer({ offerToReceiveAudio: true });
       await pc.setLocalDescription(offer);
+      localOfferRef.current = offer;
 
       // 6. Send Push Notification to owner
       fetch('/api/push/send', {
@@ -269,8 +333,22 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
 
       setStatus('calling');
 
+      // Periodic offer re-broadcast while waiting for owner to answer
+      const offerInterval = setInterval(() => {
+        if (pc.connectionState !== 'connected' && localOfferRef.current) {
+          sendSignal({
+            type: 'offer',
+            callId: newCallId,
+            sdp: localOfferRef.current
+          });
+        } else {
+          clearInterval(offerInterval);
+        }
+      }, 2000);
+
       // 8. 30-Second Timeout if owner doesn't answer
       timeoutRef.current = setTimeout(() => {
+        clearInterval(offerInterval);
         if (peerConnectionRef.current && peerConnectionRef.current.connectionState !== 'connected') {
           setStatus('unreachable');
           cleanup();
@@ -285,10 +363,10 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
   };
 
   // Method 2: OWNER Accepts Call
-  const acceptCall = async (targetCallId?: string, remoteOfferSdp?: RTCSessionDescriptionInit) => {
+  const acceptCall = async (targetCallId?: string) => {
     try {
       setErrorMessage(null);
-      const activeCallId = targetCallId || callId;
+      const activeCallId = targetCallId || callId || initialCallId;
       if (!activeCallId) return;
 
       setStatus('requesting_mic');
@@ -307,15 +385,12 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       // 2. Get ICE Servers
       const iceServers = await getIceServers();
 
-      // 3. Create PeerConnection if not existing
-      let pc = peerConnectionRef.current;
-      if (!pc) {
-        pc = new RTCPeerConnection({ iceServers });
-        peerConnectionRef.current = pc;
-      }
+      // 3. Create PeerConnection
+      const pc = new RTCPeerConnection({ iceServers });
+      peerConnectionRef.current = pc;
 
       // Add local audio tracks
-      stream.getTracks().forEach((track) => pc!.addTrack(track, stream));
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
       // Handle ICE candidates
       pc.onicecandidate = (event) => {
@@ -332,19 +407,28 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       pc.ontrack = (event) => {
         if (remoteAudioRef.current && event.streams[0]) {
           remoteAudioRef.current.srcObject = event.streams[0];
+          remoteAudioRef.current.play().catch((e) => console.warn('Audio play error:', e));
         }
       };
 
       pc.onconnectionstatechange = () => {
-        if (pc!.connectionState === 'connected') {
+        if (pc.connectionState === 'connected') {
           setStatus('connected');
-        } else if (pc!.connectionState === 'failed' || pc!.connectionState === 'closed') {
+        } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
           setStatus('ended');
         }
       };
 
-      if (remoteOfferSdp && pc.signalingState !== 'stable') {
-        await pc.setRemoteDescription(new RTCSessionDescription(remoteOfferSdp));
+      // Request offer if not yet received
+      if (!remoteOfferRef.current) {
+        sendSignal({ type: 'request-offer', callId: activeCallId });
+        // Wait up to 3 seconds for offer to arrive
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+
+      if (remoteOfferRef.current) {
+        await pc.setRemoteDescription(new RTCSessionDescription(remoteOfferRef.current));
+        await drainIceCandidates(pc);
       }
 
       // 4. Create Answer
@@ -368,7 +452,7 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
 
   // Method 3: Decline Call
   const declineCall = (targetCallId?: string) => {
-    const activeCallId = targetCallId || callId;
+    const activeCallId = targetCallId || callId || initialCallId;
     if (activeCallId) {
       sendSignal({ type: 'decline', callId: activeCallId });
     }
@@ -378,8 +462,9 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
 
   // Method 4: Hang Up Call
   const hangUp = () => {
-    if (callId) {
-      sendSignal({ type: 'hangup', callId });
+    const activeCallId = callId || initialCallId;
+    if (activeCallId) {
+      sendSignal({ type: 'hangup', callId: activeCallId });
     }
     setStatus('ended');
     cleanup();
@@ -399,7 +484,7 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
 
   return {
     status,
-    callId,
+    callId: callId || initialCallId,
     isMuted,
     duration,
     formattedDuration,

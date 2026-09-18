@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Bell, BellOff, QrCode, ShieldCheck, CheckCircle2, Car, Download, ExternalLink, Smartphone, Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
+import { Bell, BellOff, QrCode, ShieldCheck, CheckCircle2, Car, Download, ExternalLink, Smartphone, Phone, PhoneOff, Mic, MicOff, UserCheck, LogOut, Lock, Mail, User, Plus } from 'lucide-react';
 import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
@@ -27,9 +27,19 @@ export default function OwnerDashboard() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [origin, setOrigin] = useState<string>('');
 
-  // Test Car details
-  const [testCarId, setTestCarId] = useState<string>('c9b1a8f0-1234-5678-9abc-def012345678');
-  const [testCarNickname, setTestCarNickname] = useState<string>('Blue Swift');
+  // Auth & Registration Form States
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
+  const [fullName, setFullName] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [carNickname, setCarNickname] = useState<string>('Blue Swift');
+  const [submittingAuth, setSubmittingAuth] = useState<boolean>(false);
+
+  // Active Registered Car
+  const [activeCar, setActiveCar] = useState<{ id: string; nickname: string } | null>({
+    id: 'c9b1a8f0-1234-5678-9abc-def012345678',
+    nickname: 'Blue Swift'
+  });
 
   const qrContainerRef = useRef<HTMLDivElement>(null);
 
@@ -45,17 +55,38 @@ export default function OwnerDashboard() {
     hangUp,
     toggleMute
   } = useWebRTCCall({
-    carId: testCarId,
+    carId: activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678',
     role: 'owner',
-    carNickname: testCarNickname
+    carNickname: activeCar?.nickname || 'Blue Swift'
   });
+
+  // Fetch Owner Cars Helper
+  const fetchOwnerCars = async (ownerId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('cars')
+        .select('id, nickname')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        setActiveCar({ id: data[0].id, nickname: data[0].nickname });
+      }
+    } catch (e) {
+      console.warn('Failed to fetch owner cars:', e);
+    }
+  };
 
   // Check Auth & SW registration status & set origin
   useEffect(() => {
     setOrigin(window.location.origin);
 
     supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
+      const currentUser = data.user;
+      setUser(currentUser);
+      if (currentUser) {
+        fetchOwnerCars(currentUser.id);
+      }
       setLoading(false);
     });
 
@@ -73,7 +104,7 @@ export default function OwnerDashboard() {
   }, []);
 
   // Full QR URL
-  const qrUrl = `${origin || 'http://localhost:3000'}/c/${testCarId}`;
+  const qrUrl = `${origin || 'http://localhost:3000'}/c/${activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678'}`;
 
   // Download QR code as PNG image
   const handleDownloadQR = () => {
@@ -95,7 +126,8 @@ export default function OwnerDashboard() {
       }
       const pngFile = canvas.toDataURL('image/png');
       const downloadLink = document.createElement('a');
-      downloadLink.download = `callngo-qr-${testCarNickname.toLowerCase().replace(/\s+/g, '-')}.png`;
+      const filename = activeCar?.nickname ? activeCar.nickname.toLowerCase().replace(/\s+/g, '-') : 'blue-swift';
+      downloadLink.download = `callngo-qr-${filename}.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
     };
@@ -103,15 +135,116 @@ export default function OwnerDashboard() {
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
 
-  // Demo Login Handler
+  // Handle Registration Submit
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmittingAuth(true);
+      setMessage(null);
+
+      if (!email || !password || !fullName || !carNickname) {
+        throw new Error('Please fill in all fields (Name, Email, Password, Vehicle Nickname)');
+      }
+
+      // 1. Supabase Sign Up
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName }
+        }
+      });
+
+      if (authError || !authData.user) {
+        throw new Error(authError?.message || 'Registration failed');
+      }
+
+      const newUser = authData.user;
+      setUser(newUser);
+
+      // 2. Insert Profile
+      await supabase.from('profiles').upsert({
+        id: newUser.id,
+        full_name: fullName
+      });
+
+      // 3. Insert Car
+      const { data: carData, error: carError } = await supabase
+        .from('cars')
+        .insert({
+          owner_id: newUser.id,
+          nickname: carNickname
+        })
+        .select()
+        .single();
+
+      if (!carError && carData) {
+        setActiveCar({ id: carData.id, nickname: carData.nickname });
+      } else {
+        // Fallback demo car setup
+        setActiveCar({
+          id: 'c9b1a8f0-1234-5678-9abc-def012345678',
+          nickname: carNickname
+        });
+      }
+
+      setMessage({ type: 'success', text: `Welcome ${fullName}! Your car "${carNickname}" has been registered.` });
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      setMessage({ type: 'error', text: err.message || 'Registration failed' });
+    } finally {
+      setSubmittingAuth(false);
+    }
+  };
+
+  // Handle Sign In Submit
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmittingAuth(true);
+      setMessage(null);
+
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (authError || !authData.user) {
+        throw new Error(authError?.message || 'Login failed');
+      }
+
+      const currentUser = authData.user;
+      setUser(currentUser);
+      await fetchOwnerCars(currentUser.id);
+      setMessage({ type: 'success', text: 'Logged in successfully!' });
+    } catch (err: any) {
+      console.error('Sign in error:', err);
+      setMessage({ type: 'error', text: err.message || 'Login failed' });
+    } finally {
+      setSubmittingAuth(false);
+    }
+  };
+
+  // Demo Fast Login Handler
   const handleDemoLogin = async () => {
     const { data, error } = await supabase.auth.signInAnonymously();
     if (error) {
       setMessage({ type: 'error', text: error.message });
     } else {
       setUser(data.user);
-      setMessage({ type: 'success', text: 'Logged in as car owner' });
+      setMessage({ type: 'success', text: 'Logged in anonymously as car owner' });
     }
+  };
+
+  // Log Out Handler
+  const handleLogOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setMessage({ type: 'success', text: 'Logged out.' });
   };
 
   // Enable Push Call Alerts Handler
@@ -223,7 +356,7 @@ export default function OwnerDashboard() {
             </div>
 
             <h2 className="text-2xl font-bold text-white mb-2">
-              Someone is near your {testCarNickname}
+              Someone is near your {activeCar?.nickname || 'car'}
             </h2>
 
             {callStatus === 'incoming' && (
@@ -304,8 +437,8 @@ export default function OwnerDashboard() {
               🚗
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">CallNGo Owner Dashboard</h1>
-              <p className="text-xs text-slate-400">Minimal Proof-of-Concept Control Panel</p>
+              <h1 className="text-xl font-bold text-white">CallNGo Owner Control Panel</h1>
+              <p className="text-xs text-slate-400">Private Vehicle QR Calling System</p>
             </div>
           </div>
 
@@ -339,36 +472,211 @@ export default function OwnerDashboard() {
           </div>
         )}
 
-        {/* 1. Owner Authentication Card */}
+        {/* 1. OWNER REGISTRATION / AUTHENTICATION CARD */}
         <section className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl space-y-4">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            1. Owner Authentication
-          </h2>
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              1. Owner Registration & Account
+            </h2>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
-            <div>
-              <p className="text-sm font-medium text-slate-200">
-                {user ? `Logged in as Owner (${user.id.slice(0, 8)}...)` : 'Not logged in'}
-              </p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Supabase Auth session for receiving call push alerts.
-              </p>
-            </div>
-
-            {!user ? (
+            {user && (
               <button
-                onClick={handleDemoLogin}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition shadow-lg shadow-blue-600/20"
+                onClick={handleLogOut}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5"
               >
-                Log In (Demo)
+                <LogOut className="w-3.5 h-3.5" />
+                Log Out
               </button>
-            ) : (
+            )}
+          </div>
+
+          {user ? (
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-lg">
+                  ✓
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-200">
+                    Logged in as {user.email || user.user_metadata?.full_name || 'Car Owner'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5 font-mono">
+                    ID: {user.id}
+                  </p>
+                </div>
+              </div>
               <span className="px-3 py-1 rounded-full bg-emerald-950 border border-emerald-500/40 text-emerald-400 text-xs font-semibold">
                 Authenticated
               </span>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Tab Selector */}
+              <div className="flex items-center p-1 rounded-xl bg-slate-950/80 border border-slate-800 max-w-xs">
+                <button
+                  onClick={() => setAuthMode('signup')}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    authMode === 'signup'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Create Account
+                </button>
+                <button
+                  onClick={() => setAuthMode('signin')}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    authMode === 'signin'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Sign In
+                </button>
+              </div>
+
+              {/* Form Body */}
+              {authMode === 'signup' ? (
+                <form onSubmit={handleSignUp} className="space-y-3 p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
+                      <div className="relative">
+                        <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <input
+                          type="text"
+                          required
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="John Doe"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1">Email Address</label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="john@example.com"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <input
+                          type="password"
+                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1">Vehicle Nickname</label>
+                      <div className="relative">
+                        <Car className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <input
+                          type="text"
+                          required
+                          value={carNickname}
+                          onChange={(e) => setCarNickname(e.target.value)}
+                          placeholder="e.g. Blue Swift"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <button
+                      type="submit"
+                      disabled={submittingAuth}
+                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm transition shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {submittingAuth ? 'Creating Account...' : 'Register Account & Car'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDemoLogin}
+                      className="text-xs text-slate-400 hover:text-slate-200 underline"
+                    >
+                      Or Instant Anonymous Demo Login
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleSignIn} className="space-y-3 p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1">Email Address</label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="john@example.com"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <input
+                          type="password"
+                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between">
+                    <button
+                      type="submit"
+                      disabled={submittingAuth}
+                      className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
+                    >
+                      {submittingAuth ? 'Signing In...' : 'Sign In'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDemoLogin}
+                      className="text-xs text-slate-400 hover:text-slate-200 underline"
+                    >
+                      Instant Anonymous Login
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
         </section>
 
         {/* 2. Web Push Configuration Card */}
@@ -413,7 +721,7 @@ export default function OwnerDashboard() {
         <section className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl space-y-4">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <QrCode className="w-5 h-5 text-indigo-400" />
-            3. Vehicle QR Code & Public Link
+            3. Registered Vehicle QR Code & Link
           </h2>
 
           <div className="p-6 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col md:flex-row items-center gap-6">
@@ -446,8 +754,8 @@ export default function OwnerDashboard() {
             {/* QR Info & Scan Guidance */}
             <div className="flex-1 space-y-3 text-center md:text-left">
               <div>
-                <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Test Vehicle</span>
-                <h3 className="text-2xl font-bold text-white">{testCarNickname}</h3>
+                <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Registered Vehicle</span>
+                <h3 className="text-2xl font-bold text-white">{activeCar?.nickname || 'Blue Swift'}</h3>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 space-y-1">
@@ -462,7 +770,7 @@ export default function OwnerDashboard() {
 
               <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
                 <Link
-                  href={`/c/${testCarId}`}
+                  href={`/c/${activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678'}`}
                   target="_blank"
                   className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition flex items-center gap-2 shadow-lg shadow-indigo-600/20"
                 >
@@ -471,7 +779,7 @@ export default function OwnerDashboard() {
                 </Link>
 
                 <div className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
-                  /c/{testCarId.slice(0, 8)}...
+                  /c/{(activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678').slice(0, 8)}...
                 </div>
               </div>
             </div>
