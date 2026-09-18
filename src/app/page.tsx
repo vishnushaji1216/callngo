@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Bell, BellOff, QrCode, Phone, ShieldCheck, CheckCircle2, Car } from 'lucide-react';
+import { Bell, BellOff, QrCode, ShieldCheck, CheckCircle2, Car, Download, ExternalLink, Smartphone } from 'lucide-react';
 import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
 import Link from 'next/link';
+import { QRCodeSVG } from 'qrcode.react';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -23,13 +24,18 @@ export default function OwnerDashboard() {
   const [pushEnabled, setPushEnabled] = useState<boolean>(false);
   const [pushLoading, setPushLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [origin, setOrigin] = useState<string>('');
 
   // Test Car details
   const [testCarId, setTestCarId] = useState<string>('c9b1a8f0-1234-5678-9abc-def012345678');
   const [testCarNickname, setTestCarNickname] = useState<string>('Blue Swift');
 
-  // Check Auth & SW registration status
+  const qrContainerRef = useRef<HTMLDivElement>(null);
+
+  // Check Auth & SW registration status & set origin
   useEffect(() => {
+    setOrigin(window.location.origin);
+
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
       setLoading(false);
@@ -48,9 +54,40 @@ export default function OwnerDashboard() {
     }
   }, []);
 
+  // Full QR URL
+  const qrUrl = `${origin || 'http://localhost:3000'}/c/${testCarId}`;
+
+  // Download QR code as PNG image
+  const handleDownloadQR = () => {
+    const svgElement = qrContainerRef.current?.querySelector('svg');
+    if (!svgElement) return;
+
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = 512;
+      canvas.height = 512;
+      if (ctx) {
+        // Draw white background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, 512, 512);
+        ctx.drawImage(img, 32, 32, 448, 448);
+      }
+      const pngFile = canvas.toDataURL('image/png');
+      const downloadLink = document.createElement('a');
+      downloadLink.download = `callngo-qr-${testCarNickname.toLowerCase().replace(/\s+/g, '-')}.png`;
+      downloadLink.href = pngFile;
+      downloadLink.click();
+    };
+
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
   // Demo Login Handler
   const handleDemoLogin = async () => {
-    // Demo login or sign up
     const { data, error } = await supabase.auth.signInAnonymously();
     if (error) {
       setMessage({ type: 'error', text: error.message });
@@ -198,7 +235,7 @@ export default function OwnerDashboard() {
           </div>
         )}
 
-        {/* Demo Auth Card */}
+        {/* 1. Owner Authentication Card */}
         <section className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl space-y-4">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
@@ -211,7 +248,7 @@ export default function OwnerDashboard() {
                 {user ? `Logged in as Owner (${user.id.slice(0, 8)}...)` : 'Not logged in'}
               </p>
               <p className="text-xs text-slate-400 mt-0.5">
-                Anonymous or Supabase Auth session for owner call receiving.
+                Supabase Auth session for receiving call push alerts.
               </p>
             </div>
 
@@ -230,11 +267,11 @@ export default function OwnerDashboard() {
           </div>
         </section>
 
-        {/* Web Push Configuration Card */}
+        {/* 2. Web Push Configuration Card */}
         <section className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl space-y-4">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Bell className="w-5 h-5 text-blue-400" />
-            2. Web Push Notifications
+            2. Web Push Call Alerts
           </h2>
 
           <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -243,7 +280,7 @@ export default function OwnerDashboard() {
                 Call Alerts Status: {pushEnabled ? 'Active' : 'Disabled'}
               </h3>
               <p className="text-xs text-slate-400 mt-1 max-w-md">
-                Subscribes this browser to receive push notifications when callers tap "Contact Owner" on your car QR page.
+                Subscribes this browser/device to receive call notifications when callers scan your QR code.
               </p>
             </div>
 
@@ -268,38 +305,73 @@ export default function OwnerDashboard() {
           </div>
         </section>
 
-        {/* Registered Test Car Card */}
+        {/* 3. Interactive QR Code & Car Public Link Card */}
         <section className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl space-y-4">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Car className="w-5 h-5 text-indigo-400" />
-            3. Test Car & Public QR Link
+            <QrCode className="w-5 h-5 text-indigo-400" />
+            3. Vehicle QR Code & Public Link
           </h2>
 
-          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="p-6 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col md:flex-row items-center gap-6">
+            
+            {/* Visual QR Code Display */}
+            <div className="flex flex-col items-center gap-3">
+              <div
+                ref={qrContainerRef}
+                className="p-4 bg-white rounded-2xl shadow-xl border border-slate-200 flex items-center justify-center"
+              >
+                <QRCodeSVG
+                  value={qrUrl}
+                  size={160}
+                  bgColor="#FFFFFF"
+                  fgColor="#0F172A"
+                  level="H"
+                  marginSize={1}
+                />
+              </div>
+
+              <button
+                onClick={handleDownloadQR}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition flex items-center gap-2"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                Download QR Code Image
+              </button>
+            </div>
+
+            {/* QR Info & Scan Guidance */}
+            <div className="flex-1 space-y-3 text-center md:text-left">
               <div>
                 <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Test Vehicle</span>
-                <h3 className="text-xl font-bold text-white">{testCarNickname}</h3>
+                <h3 className="text-2xl font-bold text-white">{testCarNickname}</h3>
               </div>
-              <div className="px-3 py-1 rounded-full bg-blue-950/80 border border-blue-500/30 text-blue-400 text-xs font-semibold">
-                ID: {testCarId.slice(0, 8)}...
+
+              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 space-y-1">
+                <p className="flex items-center justify-center md:justify-start gap-1.5 font-medium text-slate-200">
+                  <Smartphone className="w-4 h-4 text-emerald-400" />
+                  Scan with your mobile camera phone to call!
+                </p>
+                <p className="text-slate-400">
+                  Scan the QR code above using your phone's camera app to test the caller experience live.
+                </p>
+              </div>
+
+              <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
+                <Link
+                  href={`/c/${testCarId}`}
+                  target="_blank"
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition flex items-center gap-2 shadow-lg shadow-indigo-600/20"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open Caller Page Directly
+                </Link>
+
+                <div className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
+                  /c/{testCarId.slice(0, 8)}...
+                </div>
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-xs text-slate-400">
-                Public QR URL: <code className="text-blue-300 font-mono">/c/{testCarId}</code>
-              </span>
-
-              <Link
-                href={`/c/${testCarId}`}
-                target="_blank"
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20"
-              >
-                <QrCode className="w-4 h-4" />
-                Open Caller Public Page
-              </Link>
-            </div>
           </div>
         </section>
 
