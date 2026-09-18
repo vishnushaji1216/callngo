@@ -105,10 +105,96 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
     }
   };
 
+  // Signal Message Handler for both callId & carId channels
+  const handleSignalMessage = useCallback(async (payload: any) => {
+    if (!payload || !payload.callId) return;
+
+    const msgCallId = payload.callId;
+
+    switch (payload.type) {
+      case 'owner-ready':
+        if (role === 'caller' && localOfferRef.current) {
+          sendSignal({
+            type: 'offer',
+            callId: msgCallId,
+            sdp: localOfferRef.current
+          });
+        }
+        break;
+
+      case 'request-offer':
+        if (role === 'caller' && localOfferRef.current) {
+          sendSignal({
+            type: 'offer',
+            callId: msgCallId,
+            sdp: localOfferRef.current
+          });
+        }
+        break;
+
+      case 'offer':
+        if (role === 'owner') {
+          setCallId(msgCallId);
+          remoteOfferRef.current = payload.sdp;
+          if (peerConnectionRef.current && peerConnectionRef.current.signalingState === 'stable') {
+            try {
+              await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+              await drainIceCandidates(peerConnectionRef.current);
+            } catch (e) {
+              console.error('Error setting remote offer:', e);
+            }
+          }
+          setStatus('incoming');
+        }
+        break;
+
+      case 'answer':
+        if (role === 'caller') {
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
+          if (peerConnectionRef.current) {
+            try {
+              await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+              await drainIceCandidates(peerConnectionRef.current);
+              setStatus('connected');
+            } catch (e) {
+              console.error('Error setting remote answer:', e);
+            }
+          }
+        }
+        break;
+
+      case 'ice-candidate':
+        if (payload.candidate) {
+          if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
+            try {
+              await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
+            } catch (e) {
+              console.error('Error adding ICE candidate:', e);
+            }
+          } else {
+            pendingCandidatesRef.current.push(payload.candidate);
+          }
+        }
+        break;
+
+      case 'decline':
+        setStatus('declined');
+        cleanup();
+        break;
+
+      case 'hangup':
+        setStatus('ended');
+        cleanup();
+        break;
+    }
+  }, [role, sendSignal, cleanup]);
+
   // Initialize Realtime channel subscriptions for BOTH callId AND carId
   useEffect(() => {
     const activeId = callId || initialCallId;
-    if (!activeId && !carId) return;
 
     // 1. Subscribe to specific callId channel if active
     let channel: any = null;
@@ -119,94 +205,9 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       });
 
       channel
-        .on('broadcast', { event: 'signal' }, async ({ payload }: { payload: any }) => {
-          if (!payload || !payload.callId) return;
-
-          switch (payload.type) {
-            case 'owner-ready':
-              if (role === 'caller' && localOfferRef.current) {
-                // Owner just opened the page, re-broadcast offer
-                sendSignal({
-                  type: 'offer',
-                  callId: activeId,
-                  sdp: localOfferRef.current
-                });
-              }
-              break;
-
-            case 'request-offer':
-              if (role === 'caller' && localOfferRef.current) {
-                sendSignal({
-                  type: 'offer',
-                  callId: activeId,
-                  sdp: localOfferRef.current
-                });
-              }
-              break;
-
-            case 'offer':
-              if (role === 'owner') {
-                remoteOfferRef.current = payload.sdp;
-                if (peerConnectionRef.current && peerConnectionRef.current.signalingState === 'stable') {
-                  try {
-                    await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-                    await drainIceCandidates(peerConnectionRef.current);
-                  } catch (e) {
-                    console.error('Error setting remote offer:', e);
-                  }
-                }
-                if (status === 'idle') {
-                  setStatus('incoming');
-                }
-              }
-              break;
-
-            case 'answer':
-              if (role === 'caller') {
-                if (timeoutRef.current) {
-                  clearTimeout(timeoutRef.current);
-                  timeoutRef.current = null;
-                }
-                if (peerConnectionRef.current) {
-                  try {
-                    await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-                    await drainIceCandidates(peerConnectionRef.current);
-                    setStatus('connected');
-                  } catch (e) {
-                    console.error('Error setting remote answer:', e);
-                  }
-                }
-              }
-              break;
-
-            case 'ice-candidate':
-              if (payload.candidate) {
-                if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
-                  try {
-                    await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                  } catch (e) {
-                    console.error('Error adding ICE candidate:', e);
-                  }
-                } else {
-                  pendingCandidatesRef.current.push(payload.candidate);
-                }
-              }
-              break;
-
-            case 'decline':
-              setStatus('declined');
-              cleanup();
-              break;
-
-            case 'hangup':
-              setStatus('ended');
-              cleanup();
-              break;
-          }
-        })
+        .on('broadcast', { event: 'signal' }, ({ payload }: { payload: any }) => handleSignalMessage(payload))
         .subscribe((subStatus: string) => {
           if (subStatus === 'SUBSCRIBED' && role === 'owner') {
-            // Signal caller that owner is connected and ready for offer
             channel.send({
               type: 'broadcast',
               event: 'signal',
@@ -218,13 +219,17 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       channelRef.current = channel;
     }
 
-    // 2. Subscribe to carId channel
+    // 2. Subscribe to carId channel (with identical handler so incoming offers trigger modal instantly)
     let carChannel: any = null;
     if (carId) {
-      carChannel = supabase.channel(`car:${carId}`, {
+      carChannel = supabase.channel(`call:${carId}`, {
         config: { broadcast: { self: false } }
       });
-      carChannel.subscribe();
+
+      carChannel
+        .on('broadcast', { event: 'signal' }, ({ payload }: { payload: any }) => handleSignalMessage(payload))
+        .subscribe();
+
       carChannelRef.current = carChannel;
     }
 
@@ -232,7 +237,7 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       if (channel) supabase.removeChannel(channel);
       if (carChannel) supabase.removeChannel(carChannel);
     };
-  }, [carId, callId, initialCallId, role, sendSignal, status, cleanup]);
+  }, [carId, callId, initialCallId, role, handleSignalMessage]);
 
   // Duration Timer for connected state
   useEffect(() => {
@@ -344,7 +349,7 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
         } else {
           clearInterval(offerInterval);
         }
-      }, 2000);
+      }, 1500);
 
       // 8. 30-Second Timeout if owner doesn't answer
       timeoutRef.current = setTimeout(() => {
@@ -422,7 +427,6 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       // Request offer if not yet received
       if (!remoteOfferRef.current) {
         sendSignal({ type: 'request-offer', callId: activeCallId });
-        // Wait up to 3 seconds for offer to arrive
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
 
