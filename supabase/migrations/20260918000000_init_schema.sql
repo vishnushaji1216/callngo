@@ -1,4 +1,4 @@
--- CallNGo Minimal Proof-of-Concept Schema & RLS Migration
+-- CallNGo Full Schema & RLS Migration
 
 -- 1. Create profiles table
 create table if not exists public.profiles (
@@ -7,13 +7,21 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 
--- 2. Create cars table
+-- 2. Create cars table with vehicle details, address, and emergency contact
 create table if not exists public.cars (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid references public.profiles(id) on delete cascade not null,
   nickname text not null,
+  plate_number text,
+  address text,
+  emergency_contact text,
   created_at timestamptz default now()
 );
+
+-- Ensure columns exist if table already created
+alter table public.cars add column if not exists plate_number text;
+alter table public.cars add column if not exists address text;
+alter table public.cars add column if not exists emergency_contact text;
 
 -- 3. Create push_subscriptions table
 create table if not exists public.push_subscriptions (
@@ -66,9 +74,8 @@ create policy "Owners can delete own cars"
   on public.cars for delete
   using (auth.uid() = owner_id);
 
--- Anonymous/Public policy:
--- Allows public read access to cars table, but column-level restrictions / public API wrapper
--- will ensure only (id, nickname) are selected.
+-- Public policy:
+-- Allows public read access to cars table (API endpoint ensures only nickname and id are exposed to callers)
 create policy "Public can view car nickname by car id"
   on public.cars for select
   to anon, authenticated

@@ -13,10 +13,10 @@ export async function GET(
 
     const supabase = createAnonServerClient();
 
-    // Select ONLY id and nickname to guarantee zero owner detail exposure
+    // Select ONLY id, nickname, and plate_number for public caller verification
     const { data: car, error } = await supabase
       .from('cars')
-      .select('id, nickname')
+      .select('id, nickname, plate_number')
       .eq('id', carId)
       .single();
 
@@ -26,7 +26,8 @@ export async function GET(
 
     return NextResponse.json({
       id: car.id,
-      nickname: car.nickname
+      nickname: car.nickname,
+      plate_number: car.plate_number || ''
     }, { status: 200 });
   } catch (err: any) {
     console.error('Public car fetch error:', err);

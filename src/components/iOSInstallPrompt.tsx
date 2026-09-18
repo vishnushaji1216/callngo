@@ -23,16 +23,17 @@ export function IOSInstallPrompt() {
   if (!showPrompt) return null;
 
   return (
-    <div className="bg-amber-900/40 border border-amber-500/50 rounded-xl p-4 my-4 text-amber-200 text-sm backdrop-blur-md">
+    <div className="bg-[#FAF6EE] border border-[#E4DCD0] rounded-2xl p-4 my-4 text-[#4A3B32] text-sm shadow-sm">
       <div className="flex items-start gap-3">
         <div className="text-xl">📲</div>
         <div>
-          <h4 className="font-semibold text-amber-100">iOS Safari User Notice</h4>
+          <h4 className="font-bold text-[#2C1A12]">iOS Safari User Notice</h4>
           <p className="mt-1">
-            Install CallNGo using <span className="font-semibold text-white">Share → Add to Home Screen</span> to enable call alerts.
+            Install CallNGo using <span className="font-semibold text-[#4A2E20]">Share → Add to Home Screen</span> to enable call alerts.
           </p>
         </div>
       </div>
     </div>
+
   );
 }
