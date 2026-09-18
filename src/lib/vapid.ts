@@ -6,7 +6,7 @@ const privateKey = process.env.VAPID_PRIVATE_KEY || '';
 if (publicKey && privateKey) {
   try {
     webpush.setVapidDetails(
-      'mailto:support@carconnect.app',
+      'mailto:support@callngo.app',
       publicKey,
       privateKey
     );

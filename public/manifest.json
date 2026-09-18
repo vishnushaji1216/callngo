@@ -1,6 +1,6 @@
 {
-  "name": "CarConnect",
-  "short_name": "CarConnect",
+  "name": "CallNGo",
+  "short_name": "CallNGo",
   "description": "Private browser-to-browser voice calling for car owners",
   "start_url": "/",
   "display": "standalone",

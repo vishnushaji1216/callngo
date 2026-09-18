@@ -62,7 +62,7 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
         {/* Brand Header */}
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-400 mb-6">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          CarConnect Private Call
+          CallNGo Private Call
         </div>
 
         {/* Car Identity */}

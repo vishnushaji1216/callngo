@@ -1,5 +1,5 @@
-// CarConnect Service Worker
-const CACHE_NAME = 'carconnect-v1';
+// CallNGo Service Worker
+const CACHE_NAME = 'callngo-v1';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -64,7 +64,7 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Look for an existing open CarConnect window
+      // Look for an existing open CallNGo window
       for (const client of clientList) {
         if ('focus' in client) {
           client.focus();

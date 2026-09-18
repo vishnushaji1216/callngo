@@ -29,7 +29,7 @@ export function IOSInstallPrompt() {
         <div>
           <h4 className="font-semibold text-amber-100">iOS Safari User Notice</h4>
           <p className="mt-1">
-            Install CarConnect using <span className="font-semibold text-white">Share → Add to Home Screen</span> to enable call alerts.
+            Install CallNGo using <span className="font-semibold text-white">Share → Add to Home Screen</span> to enable call alerts.
           </p>
         </div>
       </div>

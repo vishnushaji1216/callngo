@@ -1,4 +1,4 @@
--- CarConnect Minimal Proof-of-Concept Schema & RLS Migration
+-- CallNGo Minimal Proof-of-Concept Schema & RLS Migration
 
 -- 1. Create profiles table
 create table if not exists public.profiles (

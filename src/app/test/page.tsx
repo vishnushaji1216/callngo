@@ -77,7 +77,7 @@ export default function TestDiagnosticsPage() {
       const res = await fetch('/manifest.json');
       if (res.ok) {
         const json = await res.json();
-        updateStatus('pwa-manifest', 'pass', `App name: ${json.name || 'CarConnect'}`);
+        updateStatus('pwa-manifest', 'pass', `App name: ${json.name || 'CallNGo'}`);
       } else {
         updateStatus('pwa-manifest', 'fail', 'manifest.json return 404 or non-OK response');
       }
@@ -198,7 +198,7 @@ export default function TestDiagnosticsPage() {
     // 5. WebRTC Checks
     updateStatus('webrtc-mic', 'running');
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
         updateStatus('webrtc-mic', 'pass', 'MediaDevices getUserMedia API available');
       } else {
         updateStatus('webrtc-mic', 'fail', 'MediaDevices API not available in current context (HTTPS required)');
@@ -271,7 +271,7 @@ export default function TestDiagnosticsPage() {
               🔍
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">CarConnect Proof-of-Concept Diagnostics</h1>
+              <h1 className="text-xl font-bold text-white">CallNGo Proof-of-Concept Diagnostics</h1>
               <p className="text-xs text-slate-400">Automated Self-Test & Verification Suite</p>
             </div>
           </div>
