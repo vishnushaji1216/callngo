@@ -4,8 +4,8 @@
   "description": "Private browser-to-browser voice calling for car owners",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#090d16",
-  "theme_color": "#0f172a",
+  "background_color": "#160f0b",
+  "theme_color": "#2b1812",
   "orientation": "portrait",
   "icons": [
     {

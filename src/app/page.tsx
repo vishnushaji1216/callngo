@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Bell, BellOff, QrCode, ShieldCheck, CheckCircle2, Car, Download, ExternalLink, Smartphone, Phone, PhoneOff, Mic, MicOff, UserCheck, LogOut, Lock, Mail, User, Plus } from 'lucide-react';
+import { Bell, BellOff, QrCode, ShieldCheck, CheckCircle2, Car, Download, ExternalLink, Smartphone, Phone, PhoneOff, Mic, MicOff, UserCheck, LogOut, Lock, Mail, User, Plus, MessageSquare } from 'lucide-react';
 import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
@@ -106,7 +106,7 @@ export default function OwnerDashboard() {
   // Full QR URL
   const qrUrl = `${origin || 'http://localhost:3000'}/c/${activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678'}`;
 
-  // Download QR code as PNG image
+  // Download QR code as PNG image matching the exact reference card design
   const handleDownloadQR = () => {
     const svgElement = qrContainerRef.current?.querySelector('svg');
     if (!svgElement) return;
@@ -117,17 +117,76 @@ export default function OwnerDashboard() {
     const img = new Image();
 
     img.onload = () => {
-      canvas.width = 512;
-      canvas.height = 512;
+      canvas.width = 800;
+      canvas.height = 500;
       if (ctx) {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, 512, 512);
-        ctx.drawImage(img, 32, 32, 448, 448);
+        // Draw Left Chocolate Brown Panel
+        ctx.fillStyle = '#2C1812';
+        ctx.fillRect(0, 0, 420, 500);
+
+        // Draw Right Cream Panel
+        ctx.fillStyle = '#EAE7D7';
+        ctx.fillRect(420, 0, 380, 500);
+
+        // Header Text: CALL N GO
+        ctx.fillStyle = '#2A160F';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('C A L L  N  G O', 610, 50);
+
+        // Draw QR Code onto Right Panel
+        ctx.drawImage(img, 470, 70, 280, 280);
+
+        // Footer Pill Badge callngo.app
+        ctx.fillStyle = '#2A1711';
+        ctx.beginPath();
+        ctx.roundRect(550, 390, 120, 34, 17);
+        ctx.fill();
+
+        ctx.fillStyle = '#EAE7D7';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText('callngo.app', 610, 412);
+
+        // Left Panel Text Content
+        ctx.fillStyle = '#F5F2E6';
+        ctx.textAlign = 'left';
+
+        // Title
+        ctx.font = 'bold 20px serif';
+        ctx.fillText('Scan the QR', 60, 140);
+        ctx.fillText('connect the owner', 60, 170);
+
+        // Underline
+        ctx.strokeStyle = '#F5F2E6';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(60, 178);
+        ctx.lineTo(260, 178);
+        ctx.stroke();
+
+        // Call/Message Pill
+        ctx.fillStyle = '#F9F7EF';
+        ctx.beginPath();
+        ctx.roundRect(60, 210, 280, 44, 22);
+        ctx.fill();
+
+        ctx.fillStyle = '#2A160F';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText('📞 Call   ✉️ Message', 100, 238);
+
+        // Bullet Points
+        ctx.fillStyle = '#F5F2E6';
+        ctx.font = '16px serif';
+        ctx.fillText('• Please move your car', 60, 300);
+        ctx.fillText('• Your headlight is on', 60, 335);
+        ctx.fillText('• Call in case of accident', 60, 370);
+        ctx.fillText('• Your vehicle is in my way', 60, 405);
       }
+
       const pngFile = canvas.toDataURL('image/png');
       const downloadLink = document.createElement('a');
       const filename = activeCar?.nickname ? activeCar.nickname.toLowerCase().replace(/\s+/g, '-') : 'blue-swift';
-      downloadLink.download = `callngo-qr-${filename}.png`;
+      downloadLink.download = `callngo-card-${filename}.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
     };
@@ -181,7 +240,6 @@ export default function OwnerDashboard() {
       if (!carError && carData) {
         setActiveCar({ id: carData.id, nickname: carData.nickname });
       } else {
-        // Fallback demo car setup
         setActiveCar({
           id: 'c9b1a8f0-1234-5678-9abc-def012345678',
           nickname: carNickname
@@ -343,25 +401,25 @@ export default function OwnerDashboard() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 flex flex-col items-center">
+    <main className="min-h-screen bg-[#160f0b] text-[#f4efe6] p-4 sm:p-8 flex flex-col items-center selection:bg-[#d4a254] selection:text-[#160f0b]">
       {/* Hidden Audio Element for WebRTC audio playback */}
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
       {/* FULL-SCREEN INCOMING / CONNECTED CALL MODAL */}
       {(callStatus === 'incoming' || callStatus === 'connecting' || callStatus === 'connected') && (
-        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center relative">
-            <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mb-4 text-3xl">
+        <div className="fixed inset-0 z-50 bg-[#160f0b]/95 backdrop-blur-2xl flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-[#2b1812] border border-[#3e241b] rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center relative">
+            <div className="w-20 h-20 rounded-full bg-[#1b0e09] border border-[#d4a254]/30 flex items-center justify-center mb-4 text-3xl shadow-inner">
               🚗
             </div>
 
-            <h2 className="text-2xl font-bold text-white mb-2">
+            <h2 className="text-2xl font-bold text-[#f4efe6] mb-2 font-serif">
               Someone is near your {activeCar?.nickname || 'car'}
             </h2>
 
             {callStatus === 'incoming' && (
               <div className="w-full py-6 flex flex-col items-center gap-6">
-                <p className="text-sm font-semibold text-emerald-400 animate-pulse">
+                <p className="text-sm font-semibold text-[#d4a254] animate-pulse">
                   Incoming Voice Call...
                 </p>
 
@@ -376,7 +434,7 @@ export default function OwnerDashboard() {
 
                   <button
                     onClick={() => acceptCall(activeCallId)}
-                    className="flex-1 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95"
+                    className="flex-1 py-4 rounded-2xl bg-[#d4a254] hover:bg-[#c39143] text-[#160f0b] font-semibold text-base transition shadow-lg shadow-[#d4a254]/20 flex items-center justify-center gap-2 active:scale-95"
                   >
                     <Phone className="w-5 h-5" />
                     Accept
@@ -387,18 +445,18 @@ export default function OwnerDashboard() {
 
             {callStatus === 'connecting' && (
               <div className="py-6 flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-slate-300 text-sm">Connecting audio stream...</p>
+                <div className="w-8 h-8 border-3 border-[#d4a254] border-t-transparent rounded-full animate-spin" />
+                <p className="text-[#e2dacd] text-sm">Connecting audio stream...</p>
               </div>
             )}
 
             {callStatus === 'connected' && (
               <div className="w-full py-4 flex flex-col items-center gap-6">
                 <div className="flex flex-col items-center gap-1">
-                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold uppercase tracking-wider border border-emerald-500/30">
+                  <span className="px-3 py-1 rounded-full bg-[#d4a254]/20 text-[#d4a254] text-xs font-semibold uppercase tracking-wider border border-[#d4a254]/30">
                     Connected
                   </span>
-                  <span className="text-3xl font-mono font-bold text-white mt-2">
+                  <span className="text-3xl font-mono font-bold text-[#f4efe6] mt-2">
                     {formattedDuration}
                   </span>
                 </div>
@@ -409,7 +467,7 @@ export default function OwnerDashboard() {
                     className={`w-14 h-14 rounded-full flex items-center justify-center border transition ${
                       isMuted
                         ? 'bg-amber-600/20 border-amber-500 text-amber-400'
-                        : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                        : 'bg-[#1b0e09] border-[#3e241b] text-[#f4efe6] hover:bg-[#2b1812]'
                     }`}
                   >
                     {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
@@ -428,24 +486,24 @@ export default function OwnerDashboard() {
         </div>
       )}
 
-      <div className="w-full max-w-3xl space-y-6">
+      <div className="w-full max-w-4xl space-y-6">
         
         {/* Header */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-3xl backdrop-blur-xl">
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#2b1812]/90 border border-[#3e241b] p-6 rounded-3xl backdrop-blur-xl shadow-xl">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 text-xl font-bold">
+            <div className="w-12 h-12 rounded-2xl bg-[#d4a254]/20 border border-[#d4a254]/30 flex items-center justify-center text-[#d4a254] text-xl font-bold">
               🚗
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">CallNGo Owner Control Panel</h1>
-              <p className="text-xs text-slate-400">Private Vehicle QR Calling System</p>
+              <h1 className="text-xl font-bold text-[#f4efe6] tracking-tight font-serif">CallNGo Owner Control Panel</h1>
+              <p className="text-xs text-[#d8cfc4]">Private Vehicle QR Calling System</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <Link
               href="/test"
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition flex items-center gap-2"
+              className="px-4 py-2 rounded-xl bg-[#1b0e09] hover:bg-[#23130d] text-xs font-semibold text-[#d4a254] border border-[#3e241b] transition flex items-center gap-2"
             >
               🔍 Run Diagnostics
             </Link>
@@ -473,17 +531,17 @@ export default function OwnerDashboard() {
         )}
 
         {/* 1. OWNER REGISTRATION / AUTHENTICATION CARD */}
-        <section className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+        <section className="bg-[#2b1812]/70 border border-[#3e241b] p-6 rounded-3xl space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-[#3e241b] pb-3">
+            <h2 className="text-lg font-bold text-[#f4efe6] flex items-center gap-2 font-serif">
+              <ShieldCheck className="w-5 h-5 text-[#d4a254]" />
               1. Owner Registration & Account
             </h2>
 
             {user && (
               <button
                 onClick={handleLogOut}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl bg-[#1b0e09] hover:bg-[#23130d] text-[#e2dacd] text-xs font-semibold border border-[#3e241b] transition flex items-center gap-1.5"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 Log Out
@@ -492,34 +550,34 @@ export default function OwnerDashboard() {
           </div>
 
           {user ? (
-            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-[#160f0b]/80 border border-[#3e241b] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-lg">
+                <div className="w-10 h-10 rounded-full bg-[#d4a254]/20 border border-[#d4a254]/40 flex items-center justify-center text-[#d4a254] font-bold text-lg">
                   ✓
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-200">
+                  <p className="text-sm font-semibold text-[#f4efe6]">
                     Logged in as {user.email || user.user_metadata?.full_name || 'Car Owner'}
                   </p>
-                  <p className="text-xs text-slate-400 mt-0.5 font-mono">
+                  <p className="text-xs text-[#bfaea0] mt-0.5 font-mono">
                     ID: {user.id}
                   </p>
                 </div>
               </div>
-              <span className="px-3 py-1 rounded-full bg-emerald-950 border border-emerald-500/40 text-emerald-400 text-xs font-semibold">
+              <span className="px-3 py-1 rounded-full bg-[#1b0e09] border border-[#d4a254]/40 text-[#d4a254] text-xs font-semibold">
                 Authenticated
               </span>
             </div>
           ) : (
             <div className="space-y-4">
               {/* Tab Selector */}
-              <div className="flex items-center p-1 rounded-xl bg-slate-950/80 border border-slate-800 max-w-xs">
+              <div className="flex items-center p-1 rounded-xl bg-[#160f0b] border border-[#3e241b] max-w-xs">
                 <button
                   onClick={() => setAuthMode('signup')}
                   className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition ${
                     authMode === 'signup'
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-[#d4a254] text-[#160f0b] shadow-md font-bold'
+                      : 'text-[#bfaea0] hover:text-[#f4efe6]'
                   }`}
                 >
                   Create Account
@@ -528,8 +586,8 @@ export default function OwnerDashboard() {
                   onClick={() => setAuthMode('signin')}
                   className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition ${
                     authMode === 'signin'
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-[#d4a254] text-[#160f0b] shadow-md font-bold'
+                      : 'text-[#bfaea0] hover:text-[#f4efe6]'
                   }`}
                 >
                   Sign In
@@ -538,34 +596,34 @@ export default function OwnerDashboard() {
 
               {/* Form Body */}
               {authMode === 'signup' ? (
-                <form onSubmit={handleSignUp} className="space-y-3 p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+                <form onSubmit={handleSignUp} className="space-y-3 p-4 rounded-2xl bg-[#160f0b]/70 border border-[#3e241b]">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
+                      <label className="block text-xs font-semibold text-[#d8cfc4] mb-1">Full Name</label>
                       <div className="relative">
-                        <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <User className="w-4 h-4 text-[#8f7a6b] absolute left-3 top-3" />
                         <input
                           type="text"
                           required
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
                           placeholder="John Doe"
-                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1e140f] border border-[#3e241b] text-white text-sm focus:outline-none focus:border-[#d4a254]"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1">Email Address</label>
+                      <label className="block text-xs font-semibold text-[#d8cfc4] mb-1">Email Address</label>
                       <div className="relative">
-                        <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <Mail className="w-4 h-4 text-[#8f7a6b] absolute left-3 top-3" />
                         <input
                           type="email"
                           required
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="john@example.com"
-                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1e140f] border border-[#3e241b] text-white text-sm focus:outline-none focus:border-[#d4a254]"
                         />
                       </div>
                     </div>
@@ -573,31 +631,31 @@ export default function OwnerDashboard() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
+                      <label className="block text-xs font-semibold text-[#d8cfc4] mb-1">Password</label>
                       <div className="relative">
-                        <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <Lock className="w-4 h-4 text-[#8f7a6b] absolute left-3 top-3" />
                         <input
                           type="password"
                           required
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           placeholder="••••••••"
-                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1e140f] border border-[#3e241b] text-white text-sm focus:outline-none focus:border-[#d4a254]"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1">Vehicle Nickname</label>
+                      <label className="block text-xs font-semibold text-[#d8cfc4] mb-1">Vehicle Nickname</label>
                       <div className="relative">
-                        <Car className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <Car className="w-4 h-4 text-[#8f7a6b] absolute left-3 top-3" />
                         <input
                           type="text"
                           required
                           value={carNickname}
                           onChange={(e) => setCarNickname(e.target.value)}
                           placeholder="e.g. Blue Swift"
-                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1e140f] border border-[#3e241b] text-white text-sm focus:outline-none focus:border-[#d4a254]"
                         />
                       </div>
                     </div>
@@ -607,7 +665,7 @@ export default function OwnerDashboard() {
                     <button
                       type="submit"
                       disabled={submittingAuth}
-                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm transition shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#d4a254] hover:bg-[#c59343] text-[#160f0b] font-bold text-sm transition shadow-lg shadow-[#d4a254]/20 flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       <Plus className="w-4 h-4" />
                       {submittingAuth ? 'Creating Account...' : 'Register Account & Car'}
@@ -616,41 +674,41 @@ export default function OwnerDashboard() {
                     <button
                       type="button"
                       onClick={handleDemoLogin}
-                      className="text-xs text-slate-400 hover:text-slate-200 underline"
+                      className="text-xs text-[#d8cfc4] hover:text-[#f4efe6] underline"
                     >
                       Or Instant Anonymous Demo Login
                     </button>
                   </div>
                 </form>
               ) : (
-                <form onSubmit={handleSignIn} className="space-y-3 p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+                <form onSubmit={handleSignIn} className="space-y-3 p-4 rounded-2xl bg-[#160f0b]/70 border border-[#3e241b]">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1">Email Address</label>
+                      <label className="block text-xs font-semibold text-[#d8cfc4] mb-1">Email Address</label>
                       <div className="relative">
-                        <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <Mail className="w-4 h-4 text-[#8f7a6b] absolute left-3 top-3" />
                         <input
                           type="email"
                           required
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="john@example.com"
-                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1e140f] border border-[#3e241b] text-white text-sm focus:outline-none focus:border-[#d4a254]"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1">Password</label>
+                      <label className="block text-xs font-semibold text-[#d8cfc4] mb-1">Password</label>
                       <div className="relative">
-                        <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <Lock className="w-4 h-4 text-[#8f7a6b] absolute left-3 top-3" />
                         <input
                           type="password"
                           required
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           placeholder="••••••••"
-                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1e140f] border border-[#3e241b] text-white text-sm focus:outline-none focus:border-[#d4a254]"
                         />
                       </div>
                     </div>
@@ -660,7 +718,7 @@ export default function OwnerDashboard() {
                     <button
                       type="submit"
                       disabled={submittingAuth}
-                      className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
+                      className="px-6 py-2.5 rounded-xl bg-[#d4a254] hover:bg-[#c59343] text-[#160f0b] font-bold text-sm transition shadow-lg shadow-[#d4a254]/20 disabled:opacity-50"
                     >
                       {submittingAuth ? 'Signing In...' : 'Sign In'}
                     </button>
@@ -668,7 +726,7 @@ export default function OwnerDashboard() {
                     <button
                       type="button"
                       onClick={handleDemoLogin}
-                      className="text-xs text-slate-400 hover:text-slate-200 underline"
+                      className="text-xs text-[#d8cfc4] hover:text-[#f4efe6] underline"
                     >
                       Instant Anonymous Login
                     </button>
@@ -680,19 +738,19 @@ export default function OwnerDashboard() {
         </section>
 
         {/* 2. Web Push Configuration Card */}
-        <section className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl space-y-4">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Bell className="w-5 h-5 text-blue-400" />
+        <section className="bg-[#2b1812]/70 border border-[#3e241b] p-6 rounded-3xl space-y-4 shadow-xl">
+          <h2 className="text-lg font-bold text-[#f4efe6] flex items-center gap-2 font-serif">
+            <Bell className="w-5 h-5 text-[#d4a254]" />
             2. Web Push Call Alerts
           </h2>
 
-          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="p-4 rounded-2xl bg-[#160f0b]/70 border border-[#3e241b] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-slate-200">
+              <h3 className="text-sm font-semibold text-[#f4efe6]">
                 Call Alerts Status: {pushEnabled ? 'Active' : 'Disabled'}
               </h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-md">
-                Subscribes this browser/device to receive call notifications when callers scan your QR code.
+              <p className="text-xs text-[#d8cfc4] mt-1 max-w-md">
+                Subscribes this device to receive push alerts when callers scan your QR code sticker.
               </p>
             </div>
 
@@ -700,7 +758,7 @@ export default function OwnerDashboard() {
               <button
                 onClick={handleDisableCallAlerts}
                 disabled={pushLoading}
-                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold text-sm transition"
+                className="px-5 py-2.5 rounded-xl bg-[#1b0e09] hover:bg-[#23130d] border border-[#3e241b] text-[#e2dacd] font-semibold text-sm transition"
               >
                 Disable Call Alerts
               </button>
@@ -708,7 +766,7 @@ export default function OwnerDashboard() {
               <button
                 onClick={handleEnableCallAlerts}
                 disabled={pushLoading}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm transition shadow-lg shadow-blue-600/25 flex items-center gap-2"
+                className="px-6 py-3 rounded-xl bg-[#d4a254] hover:bg-[#c59343] text-[#160f0b] font-bold text-sm transition shadow-lg shadow-[#d4a254]/20 flex items-center gap-2"
               >
                 <Bell className="w-4 h-4" />
                 {pushLoading ? 'Enabling...' : 'Enable Call Alerts'}
@@ -717,74 +775,127 @@ export default function OwnerDashboard() {
           </div>
         </section>
 
-        {/* 3. Interactive QR Code & Car Public Link Card */}
-        <section className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl space-y-4">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <QrCode className="w-5 h-5 text-indigo-400" />
-            3. Registered Vehicle QR Code & Link
-          </h2>
+        {/* 3. PHYSICAL PRINTABLE STICKER CARD (MATCHING USER REFERENCE DESIGN) */}
+        <section className="bg-[#2b1812]/70 border border-[#3e241b] p-6 rounded-3xl space-y-4 shadow-xl">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-[#f4efe6] flex items-center gap-2 font-serif">
+              <QrCode className="w-5 h-5 text-[#d4a254]" />
+              3. Printable Vehicle QR Card (Reference Design)
+            </h2>
 
-          <div className="p-6 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col md:flex-row items-center gap-6">
+            <button
+              onClick={handleDownloadQR}
+              className="px-4 py-2 rounded-xl bg-[#d4a254] hover:bg-[#c59343] text-[#160f0b] font-bold text-xs transition flex items-center gap-2 shadow-md shadow-[#d4a254]/20"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download Printable Card PNG
+            </button>
+          </div>
+
+          {/* PHYSICAL DUAL-PANEL CARD CONTAINER (MIRRORS REFERENCE STICKER DESIGN) */}
+          <div className="w-full rounded-3xl overflow-hidden border border-[#523326] shadow-2xl flex flex-col md:flex-row">
             
-            {/* Visual QR Code Display */}
-            <div className="flex flex-col items-center gap-3">
+            {/* LEFT PANEL: Deep Chocolate Brown with Line Art & Instructions */}
+            <div className="md:w-1/2 bg-[#2A1812] p-8 text-[#F5F2E6] flex flex-col items-center text-center justify-between border-b md:border-b-0 md:border-r border-[#3D231A]">
+              
+              {/* Car Wheel Line-Art Icon */}
+              <div className="w-24 h-24 rounded-full border-2 border-[#D4A254]/40 flex items-center justify-center bg-[#1E0F0A]/60 shadow-inner mb-4">
+                <svg className="w-16 h-16 text-[#D4A254]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <circle cx="12" cy="12" r="9" />
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M12 3v6M12 15v6M3 12h6M15 12h6M5.6 5.6l4.3 4.3M14.1 14.1l4.3 4.3M5.6 18.4l4.3-4.3M14.1 9.9l4.3-4.3" />
+                </svg>
+              </div>
+
+              {/* Tagline */}
+              <div className="mb-6">
+                <h3 className="text-xl sm:text-2xl font-bold font-serif tracking-wide text-[#F5F2E6]">
+                  Scan the QR
+                </h3>
+                <h3 className="text-xl sm:text-2xl font-bold font-serif tracking-wide text-[#F5F2E6] underline underline-offset-4 decoration-[#D4A254]">
+                  connect the owner
+                </h3>
+              </div>
+
+              {/* Call / Message Pill Badge */}
+              <div className="px-6 py-2.5 rounded-full bg-[#F9F7EF] text-[#2A160F] font-bold text-sm flex items-center gap-4 shadow-md mb-6 border border-[#EBE8D8]">
+                <span className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-[#2A160F]" /> Call</span>
+                <span className="text-[#8F7A6B]">|</span>
+                <span className="flex items-center gap-1.5"><MessageSquare className="w-4 h-4 text-[#2A160F]" /> Message</span>
+              </div>
+
+              {/* Bulleted Reason List */}
+              <ul className="text-left text-sm space-y-2 text-[#E2DACD] font-serif w-full max-w-xs">
+                <li className="flex items-start gap-2">
+                  <span className="text-[#D4A254] font-bold">•</span>
+                  <span>Please move your car</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#D4A254] font-bold">•</span>
+                  <span>Your headlight is on</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#D4A254] font-bold">•</span>
+                  <span>call incase of accident</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#D4A254] font-bold">•</span>
+                  <span>Your vehicle is in my way</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* RIGHT PANEL: Light Vintage Cream Background with QR Code */}
+            <div className="md:w-1/2 bg-[#EAE7D7] p-8 text-[#2A160F] flex flex-col items-center justify-between text-center min-h-[380px]">
+              
+              {/* Spaced Brand Title */}
+              <div className="text-2xl font-bold tracking-[0.3em] font-mono text-[#2A160F] uppercase mt-2">
+                C A L L N G O
+              </div>
+
+              {/* Center QR Code */}
               <div
                 ref={qrContainerRef}
-                className="p-4 bg-white rounded-2xl shadow-xl border border-slate-200 flex items-center justify-center"
+                className="p-4 bg-[#EAE7D7] rounded-2xl flex items-center justify-center shadow-inner"
               >
                 <QRCodeSVG
                   value={qrUrl}
-                  size={160}
-                  bgColor="#FFFFFF"
-                  fgColor="#0F172A"
+                  size={190}
+                  bgColor="#EAE7D7"
+                  fgColor="#2A160F"
                   level="H"
                   marginSize={1}
                 />
               </div>
 
-              <button
-                onClick={handleDownloadQR}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition flex items-center gap-2"
-              >
-                <Download className="w-3.5 h-3.5 text-indigo-400" />
-                Download QR Code Image
-              </button>
-            </div>
-
-            {/* QR Info & Scan Guidance */}
-            <div className="flex-1 space-y-3 text-center md:text-left">
-              <div>
-                <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Registered Vehicle</span>
-                <h3 className="text-2xl font-bold text-white">{activeCar?.nickname || 'Blue Swift'}</h3>
+              {/* Domain Footer Badge */}
+              <div className="mt-2">
+                <span className="px-5 py-1.5 rounded-full bg-[#2A1711] text-[#EAE7D7] text-xs font-bold tracking-wider font-mono">
+                  callngo.app
+                </span>
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 space-y-1">
-                <p className="flex items-center justify-center md:justify-start gap-1.5 font-medium text-slate-200">
-                  <Smartphone className="w-4 h-4 text-emerald-400" />
-                  Scan with your mobile camera phone to call!
-                </p>
-                <p className="text-slate-400">
-                  Scan the QR code above using your phone's camera app to test the caller experience live.
-                </p>
-              </div>
-
-              <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
-                <Link
-                  href={`/c/${activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678'}`}
-                  target="_blank"
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition flex items-center gap-2 shadow-lg shadow-indigo-600/20"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Open Caller Page Directly
-                </Link>
-
-                <div className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
-                  /c/{(activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678').slice(0, 8)}...
-                </div>
-              </div>
             </div>
 
           </div>
+
+          {/* Quick Direct Link Bar */}
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-3 text-xs text-[#d8cfc4]">
+            <span className="flex items-center gap-1.5">
+              <Smartphone className="w-4 h-4 text-[#d4a254]" />
+              Vehicle: <strong className="text-white">{activeCar?.nickname || 'Blue Swift'}</strong>
+            </span>
+
+            <Link
+              href={`/c/${activeCar?.id || 'c9b1a8f0-1234-5678-9abc-def012345678'}`}
+              target="_blank"
+              className="px-4 py-2 rounded-xl bg-[#1b0e09] hover:bg-[#23130d] text-[#d4a254] border border-[#3e241b] font-semibold transition flex items-center gap-1.5"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open Live Caller Page
+            </Link>
+          </div>
+
         </section>
 
       </div>
