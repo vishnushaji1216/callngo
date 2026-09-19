@@ -18,10 +18,14 @@ export async function GET(
       .from('cars')
       .select('id, owner_id, nickname, model_number, plate_number')
       .eq('id', carId)
-      .single();
+      .maybeSingle();
 
-    if (carError || !car) {
-      return NextResponse.json({ error: 'Car not found' }, { status: 404 });
+    // If car record doesn't exist yet, it is an unassigned pre-printed sticker ID
+    if (!car || !car.owner_id) {
+      return NextResponse.json({
+        id: carId,
+        is_activated: false
+      }, { status: 200 });
     }
 
     // 2. Fetch owner emergency & medical profile
@@ -29,11 +33,12 @@ export async function GET(
       .from('profiles')
       .select('emergency_contact, blood_group, health_issues, medications, allergies')
       .eq('id', car.owner_id)
-      .single();
+      .maybeSingle();
 
     return NextResponse.json({
       id: car.id,
-      nickname: car.nickname,
+      is_activated: true,
+      nickname: car.nickname || 'Vehicle',
       model_number: car.model_number || '',
       plate_number: car.plate_number || '',
       emergency_contact: profile?.emergency_contact || '',
@@ -47,4 +52,3 @@ export async function GET(
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
-
