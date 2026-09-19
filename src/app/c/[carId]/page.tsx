@@ -2,13 +2,16 @@
 
 import { use, useEffect, useState } from 'react';
 import { useWebRTCCall } from '@/hooks/useWebRTCCall';
-import { Phone, Mic, MicOff, PhoneOff, ShieldCheck, AlertCircle, Check, Hash, PhoneCall, HeartPulse, AlertTriangle } from 'lucide-react';
+import { Phone, Mic, MicOff, PhoneOff, ShieldCheck, AlertCircle, Check, Hash, PhoneCall, HeartPulse, Sparkles, User, Mail, Lock, Car, Plus, LogIn } from 'lucide-react';
 import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
+import { supabase } from '@/lib/supabase/client';
 
 export default function PublicCarPage({ params }: { params: Promise<{ carId: string }> }) {
   const resolvedParams = use(params);
   const carId = resolvedParams.carId;
 
+  // Activation & Car Info States
+  const [isActivated, setIsActivated] = useState<boolean | null>(null);
   const [carNickname, setCarNickname] = useState<string>('Loading vehicle...');
   const [modelNumber, setModelNumber] = useState<string>('');
   const [plateNumber, setPlateNumber] = useState<string>('');
@@ -22,6 +25,19 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
 
   const [loadingCar, setLoadingCar] = useState<boolean>(true);
   const [selectedReason, setSelectedReason] = useState<string>('Please move your car');
+
+  // Unclaimed Activation Form States
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authTab, setAuthTab] = useState<'signup' | 'signin'>('signup');
+  const [fullName, setFullName] = useState<string>('');
+  const [phoneNum, setPhoneNum] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [claimName, setClaimName] = useState<string>('');
+  const [claimModel, setClaimModel] = useState<string>('');
+  const [claimPlate, setClaimPlate] = useState<string>('');
+  const [submittingClaim, setSubmittingClaim] = useState<boolean>(false);
+  const [claimMessage, setClaimMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const {
     status,
@@ -45,33 +61,357 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
     'Your vehicle is in my way'
   ];
 
-  // Fetch public vehicle & emergency profile details
-  useEffect(() => {
+  // Load car public details & check activation status
+  const fetchCarPublicDetails = () => {
     if (!carId) return;
 
     fetch(`/api/cars/${carId}/public`)
       .then((res) => {
-        if (!res.ok) throw new Error('Vehicle not found');
+        if (!res.ok) throw new Error('Vehicle check failed');
         return res.json();
       })
       .then((data) => {
-        setCarNickname(data.nickname || 'Vehicle');
-        setModelNumber(data.model_number || '');
-        setPlateNumber(data.plate_number || '');
-        setEmergencyContact(data.emergency_contact || '');
-        setBloodGroup(data.blood_group || '');
-        setHealthIssues(data.health_issues || '');
-        setMedications(data.medications || '');
-        setAllergies(data.allergies || '');
+        setIsActivated(data.is_activated);
+        if (data.is_activated) {
+          setCarNickname(data.nickname || 'Vehicle');
+          setModelNumber(data.model_number || '');
+          setPlateNumber(data.plate_number || '');
+          setEmergencyContact(data.emergency_contact || '');
+          setBloodGroup(data.blood_group || '');
+          setHealthIssues(data.health_issues || '');
+          setMedications(data.medications || '');
+          setAllergies(data.allergies || '');
+        }
         setLoadingCar(false);
       })
       .catch((err) => {
         console.error('Failed to load public car info:', err);
-        setCarNickname('Vehicle');
+        setIsActivated(false);
         setLoadingCar(false);
       });
+  };
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setCurrentUser(data.user);
+      }
+    });
+
+    fetchCarPublicDetails();
   }, [carId]);
 
+  // Handle Unclaimed Sticker Activation Form Submit
+  const handleActivateSticker = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmittingClaim(true);
+      setClaimMessage(null);
+
+      if (!claimName || !claimPlate) {
+        throw new Error('Vehicle Name and License Plate are required');
+      }
+
+      let activeUserId = currentUser?.id;
+
+      // 1. If user not logged in, authenticate/register first
+      if (!activeUserId) {
+        if (authTab === 'signup') {
+          if (!fullName || !phoneNum || !email || !password) {
+            throw new Error('Please complete your account registration details (Name, Phone, Email, Password)');
+          }
+
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: { full_name: fullName, phone_number: phoneNum }
+            }
+          });
+
+          if (authError || !authData.user) {
+            throw new Error(authError?.message || 'Account registration failed');
+          }
+
+          activeUserId = authData.user.id;
+          setCurrentUser(authData.user);
+
+          // Save Profile
+          await supabase.from('profiles').upsert({
+            id: activeUserId,
+            full_name: fullName,
+            phone_number: phoneNum
+          });
+        } else {
+          // Sign In
+          if (!email || !password) {
+            throw new Error('Please enter your email and password to sign in');
+          }
+
+          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+
+          if (authError || !authData.user) {
+            throw new Error(authError?.message || 'Login failed');
+          }
+
+          activeUserId = authData.user.id;
+          setCurrentUser(authData.user);
+        }
+      }
+
+      // 2. Claim & Activate the pre-printed sticker ID
+      const claimRes = await fetch(`/api/cars/${carId}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nickname: claimName,
+          model_number: claimModel,
+          plate_number: claimPlate,
+          userId: activeUserId
+        })
+      });
+
+      const claimData = await claimRes.json();
+      if (!claimRes.ok) {
+        throw new Error(claimData.error || 'Failed to activate sticker');
+      }
+
+      setClaimMessage({ type: 'success', text: '🎉 Sticker activated successfully!' });
+      
+      // Reload car state to show activated public caller page
+      setTimeout(() => {
+        fetchCarPublicDetails();
+      }, 1000);
+
+    } catch (err: any) {
+      console.error('Sticker activation error:', err);
+      setClaimMessage({ type: 'error', text: err.message || 'Activation failed' });
+    } finally {
+      setSubmittingClaim(false);
+    }
+  };
+
+  if (loadingCar) {
+    return (
+      <main className="min-h-screen bg-[#F8F5EE] flex items-center justify-center">
+        <div className="w-8 h-8 border-3 border-[#4A2E20] border-t-transparent rounded-full animate-spin" />
+      </main>
+    );
+  }
+
+  // CASE 1: UNCLAIMED PRE-PRINTED STICKER ACTIVATION SCREEN
+  if (isActivated === false) {
+    return (
+      <main className="min-h-screen bg-[#F8F5EE] text-[#2C1A12] flex flex-col items-center justify-center p-4 selection:bg-[#D4A254] selection:text-[#160f0b]">
+        <div className="w-full max-w-lg bg-white border border-[#E4DCD0] rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col items-center text-center relative overflow-hidden">
+          
+          <div className="w-16 h-16 rounded-2xl bg-[#4A2E20] text-white flex items-center justify-center text-3xl mb-4 shadow-md">
+            ✨
+          </div>
+
+          <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold uppercase tracking-wider mb-2">
+            Unclaimed Vehicle Sticker
+          </span>
+
+          <h1 className="text-2xl sm:text-3xl font-bold font-serif text-[#2C1A12] tracking-tight mb-2">
+            Activate Your CallNGo QR Sticker
+          </h1>
+
+          <p className="text-xs text-[#7A6657] mb-6 max-w-sm">
+            You scanned an unassigned sticker. Enter your vehicle details below to activate and link this QR code sticker to your account.
+          </p>
+
+          {/* System Messages */}
+          {claimMessage && (
+            <div
+              className={`w-full p-3.5 rounded-2xl border text-xs flex items-center gap-2.5 mb-4 text-left ${
+                claimMessage.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-red-50 border-red-200 text-red-900'
+              }`}
+            >
+              <span>{claimMessage.text}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleActivateSticker} className="w-full text-left space-y-4">
+            
+            {/* If NOT logged in, show Auth Tabs */}
+            {!currentUser && (
+              <div className="p-4 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#B5822B]">Step 1: Your Account</div>
+                
+                <div className="flex items-center p-1 rounded-xl bg-white border border-[#E4DCD0]">
+                  <button
+                    type="button"
+                    onClick={() => setAuthTab('signup')}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition ${
+                      authTab === 'signup'
+                        ? 'bg-[#4A2E20] text-white shadow-sm font-bold'
+                        : 'text-[#7A6657] hover:text-[#2C1A12]'
+                    }`}
+                  >
+                    New Account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthTab('signin')}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition ${
+                      authTab === 'signin'
+                        ? 'bg-[#4A2E20] text-white shadow-sm font-bold'
+                        : 'text-[#7A6657] hover:text-[#2C1A12]'
+                    }`}
+                  >
+                    Existing User Login
+                  </button>
+                </div>
+
+                {authTab === 'signup' ? (
+                  <div className="space-y-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#4A3B32]">Full Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="John Doe"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#4A3B32]">Phone Number *</label>
+                      <input
+                        type="tel"
+                        required
+                        value={phoneNum}
+                        onChange={(e) => setPhoneNum(e.target.value)}
+                        placeholder="+91 9876543210"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-[#4A3B32]">Email Address *</label>
+                        <input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="john@example.com"
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs focus:outline-none focus:border-[#B5822B]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-[#4A3B32]">Password *</label>
+                        <input
+                          type="password"
+                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs focus:outline-none focus:border-[#B5822B]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#4A3B32]">Email Address *</label>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="john@example.com"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#4A3B32]">Password *</label>
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Vehicle Details Step */}
+            <div className="p-4 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-3">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#B5822B]">
+                {currentUser ? 'Enter Vehicle Details' : 'Step 2: Vehicle Details'}
+              </div>
+
+              {currentUser && (
+                <p className="text-xs text-[#7A6657]">
+                  Activating as: <strong className="text-[#2C1A12]">{currentUser.email}</strong>
+                </p>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#4A3B32] mb-1">Vehicle Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={claimName}
+                  onChange={(e) => setClaimName(e.target.value)}
+                  placeholder="e.g. Swift / City / Duke"
+                  className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs focus:outline-none focus:border-[#B5822B]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#4A3B32] mb-1">Model Number</label>
+                  <input
+                    type="text"
+                    value={claimModel}
+                    onChange={(e) => setClaimModel(e.target.value)}
+                    placeholder="e.g. VXI 2022"
+                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs focus:outline-none focus:border-[#B5822B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#4A3B32] mb-1">License Plate *</label>
+                  <input
+                    type="text"
+                    required
+                    value={claimPlate}
+                    onChange={(e) => setClaimPlate(e.target.value)}
+                    placeholder="e.g. KA 01 AB 1234"
+                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs focus:outline-none focus:border-[#B5822B]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submittingClaim}
+              className="w-full py-3.5 rounded-2xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-sm transition shadow-lg shadow-[#4A2E20]/20 flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Sparkles className="w-4 h-4 text-[#D4A254]" />
+              {submittingClaim ? 'Activating Sticker...' : 'Activate & Link Sticker Now'}
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
+  // CASE 2: ACTIVATED STICKER - PUBLIC CALLER & EMERGENCY MEDICAL PAGE
   return (
     <main className="min-h-screen bg-[#F8F5EE] text-[#2C1A12] flex flex-col items-center justify-center p-4 selection:bg-[#D4A254] selection:text-[#160f0b]">
       {/* Hidden Audio Element for WebRTC remote stream */}

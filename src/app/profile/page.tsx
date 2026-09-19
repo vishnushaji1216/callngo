@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { ShieldCheck, User, Mail, Phone, PhoneCall, Plus, Car, Trash2, Edit2, Download, ExternalLink, Bell, CheckCircle2, BellOff, LogOut, Copy, Check, HeartPulse, AlertCircle, Save, Mic, MicOff, PhoneOff, Hash } from 'lucide-react';
+import { ShieldCheck, User, Mail, Phone, PhoneCall, Plus, Car, Trash2, Edit2, Download, ExternalLink, Bell, CheckCircle2, BellOff, LogOut, Copy, Check, HeartPulse, AlertCircle, Save, Mic, MicOff, PhoneOff, Hash, Unlink, QrCode } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
@@ -63,6 +63,14 @@ export default function ProfilePage() {
   const [vehModel, setVehModel] = useState<string>('');
   const [vehPlate, setVehPlate] = useState<string>('');
   const [submittingVeh, setSubmittingVeh] = useState<boolean>(false);
+
+  // Claim Pre-printed Sticker Form State
+  const [showClaimSticker, setShowClaimSticker] = useState<boolean>(false);
+  const [claimTagId, setClaimTagId] = useState<string>('');
+  const [claimVehName, setClaimVehName] = useState<string>('');
+  const [claimVehModel, setClaimVehModel] = useState<string>('');
+  const [claimVehPlate, setClaimVehPlate] = useState<string>('');
+  const [claimingSticker, setClaimingSticker] = useState<boolean>(false);
 
   // Push Subscription State
   const [pushEnabled, setPushEnabled] = useState<boolean>(false);
@@ -256,6 +264,66 @@ export default function ProfilePage() {
       await loadUserData(user.id);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to delete vehicle' });
+    }
+  };
+
+  // Unlink / Deactivate Vehicle Sticker
+  const handleUnlinkVehicle = async (vehId: string, nickname: string) => {
+    if (!confirm(`Are you sure you want to unlink sticker for "${nickname}"? The sticker will be returned to the unclaimed pool and can be registered again.`)) return;
+    try {
+      setMessage(null);
+      const res = await fetch(`/api/cars/${vehId}/unlink`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to unlink sticker');
+
+      setMessage({ type: 'success', text: `Sticker for "${nickname}" has been unlinked successfully!` });
+      await loadUserData(user.id);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Failed to unlink vehicle sticker' });
+    }
+  };
+
+  // Claim Pre-Printed Sticker by ID
+  const handleClaimSticker = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    try {
+      setClaimingSticker(true);
+      setMessage(null);
+
+      if (!claimTagId.trim() || !claimVehName.trim() || !claimVehPlate.trim()) {
+        throw new Error('Sticker ID, Vehicle Name, and License Plate are required');
+      }
+
+      const res = await fetch(`/api/cars/${claimTagId.trim()}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nickname: claimVehName.trim(),
+          model_number: claimVehModel.trim(),
+          plate_number: claimVehPlate.trim(),
+          userId: user.id
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to claim sticker');
+
+      setMessage({ type: 'success', text: `Pre-printed QR Sticker successfully claimed for "${claimVehName}"!` });
+      setClaimTagId('');
+      setClaimVehName('');
+      setClaimVehModel('');
+      setClaimVehPlate('');
+      setShowClaimSticker(false);
+      await loadUserData(user.id);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Failed to claim sticker' });
+    } finally {
+      setClaimingSticker(false);
     }
   };
 
@@ -702,19 +770,33 @@ export default function ProfilePage() {
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                setEditingVehicleId(null);
-                setVehName('');
-                setVehModel('');
-                setVehPlate('');
-                setShowAddVehicle(!showAddVehicle);
-              }}
-              className="px-4 py-2.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition flex items-center gap-2 shadow-md"
-            >
-              <Plus className="w-4 h-4 text-[#D4A254]" />
-              {showAddVehicle ? 'Cancel' : 'Add New Vehicle'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setShowAddVehicle(false);
+                  setShowClaimSticker(!showClaimSticker);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] font-bold text-xs transition flex items-center gap-2 shadow-sm"
+              >
+                <QrCode className="w-4 h-4 text-[#B5822B]" />
+                {showClaimSticker ? 'Cancel' : 'Claim Sticker ID'}
+              </button>
+
+              <button
+                onClick={() => {
+                  setEditingVehicleId(null);
+                  setVehName('');
+                  setVehModel('');
+                  setVehPlate('');
+                  setShowClaimSticker(false);
+                  setShowAddVehicle(!showAddVehicle);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition flex items-center gap-2 shadow-md"
+              >
+                <Plus className="w-4 h-4 text-[#D4A254]" />
+                {showAddVehicle ? 'Cancel' : 'Add New Vehicle'}
+              </button>
+            </div>
           </div>
 
           {/* ADD / EDIT VEHICLE FORM MODAL */}
@@ -781,6 +863,82 @@ export default function ProfilePage() {
             </form>
           )}
 
+          {/* CLAIM PRE-PRINTED STICKER FORM MODAL */}
+          {showClaimSticker && (
+            <form onSubmit={handleClaimSticker} className="p-5 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-4 animate-in fade-in duration-200">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#B5822B]">
+                Link Pre-Printed Physical QR Code Sticker
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Sticker / Tag ID (from QR link) *</label>
+                <input
+                  type="text"
+                  required
+                  value={claimTagId}
+                  onChange={(e) => setClaimTagId(e.target.value)}
+                  placeholder="e.g. paste tag UUID or car ID from QR sticker"
+                  className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B] font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Vehicle Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={claimVehName}
+                    onChange={(e) => setClaimVehName(e.target.value)}
+                    placeholder="e.g. Swift / City / Duke"
+                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Model Number</label>
+                  <input
+                    type="text"
+                    value={claimVehModel}
+                    onChange={(e) => setClaimVehModel(e.target.value)}
+                    placeholder="e.g. VXI 2022"
+                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">License Plate Number *</label>
+                  <input
+                    type="text"
+                    required
+                    value={claimVehPlate}
+                    onChange={(e) => setClaimVehPlate(e.target.value)}
+                    placeholder="e.g. KA 01 AB 1234"
+                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowClaimSticker(false)}
+                  className="px-4 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#7A6657] font-semibold text-xs transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={claimingSticker}
+                  className="px-6 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition shadow-md disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <QrCode className="w-3.5 h-3.5 text-[#D4A254]" />
+                  {claimingSticker ? 'Claiming Sticker...' : 'Activate & Link Sticker'}
+                </button>
+              </div>
+            </form>
+          )}
+
           {/* LIST OF VEHICLES */}
           {vehicles.length === 0 ? (
             <div className="p-8 text-center rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-3">
@@ -813,6 +971,15 @@ export default function ProfilePage() {
                       </div>
 
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleUnlinkVehicle(v.id, v.nickname)}
+                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200 transition flex items-center gap-1"
+                          title="Return sticker to unclaimed pool"
+                        >
+                          <Unlink className="w-3.5 h-3.5 text-amber-700" />
+                          Unlink Sticker
+                        </button>
+
                         <button
                           onClick={() => {
                             setEditingVehicleId(v.id);
