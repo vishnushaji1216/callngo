@@ -404,104 +404,7 @@ export default function ProfilePage() {
     }
   };
 
-  // Download High-Res PNG Card for a specific vehicle
-  const handleDownloadVehicleQR = (v: Vehicle) => {
-    const container = qrRefs.current[v.id];
-    const svgElement = container?.querySelector('svg');
-    if (!svgElement) return;
 
-    const svgData = new XMLSerializer().serializeToString(svgElement);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-
-    img.onload = () => {
-      canvas.width = 800;
-      canvas.height = 500;
-      if (ctx) {
-        // Draw Left Panel (Chocolate Brown)
-        ctx.fillStyle = '#2C1812';
-        ctx.fillRect(0, 0, 420, 500);
-
-        // Draw Right Panel (Vintage Cream)
-        ctx.fillStyle = '#EAE7D7';
-        ctx.fillRect(420, 0, 380, 500);
-
-        // Header Text: CALL N GO
-        ctx.fillStyle = '#2A160F';
-        ctx.font = 'bold 24px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('C A L L  N  G O', 610, 50);
-
-        // Draw QR Code onto Right Panel
-        ctx.drawImage(img, 470, 70, 270, 270);
-
-        // Draw Vehicle Plate & Model Number on Right Panel
-        ctx.fillStyle = '#2A160F';
-        ctx.font = 'bold 15px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`PLATE: ${v.plate_number?.toUpperCase() || ''}`, 610, 360);
-        if (v.model_number) {
-          ctx.font = '13px sans-serif';
-          ctx.fillText(`MODEL: ${v.model_number}`, 610, 380);
-        }
-
-        // Footer Pill Badge
-        ctx.fillStyle = '#2A1711';
-        ctx.beginPath();
-        ctx.roundRect(550, 405, 120, 34, 17);
-        ctx.fill();
-
-        ctx.fillStyle = '#EAE7D7';
-        ctx.font = 'bold 14px sans-serif';
-        ctx.fillText('callngo.app', 610, 427);
-
-        // Left Panel Text Content
-        ctx.fillStyle = '#F5F2E6';
-        ctx.textAlign = 'left';
-
-        // Title
-        ctx.font = 'bold 20px serif';
-        ctx.fillText('Scan the QR', 60, 140);
-        ctx.fillText('connect the owner', 60, 170);
-
-        // Underline
-        ctx.strokeStyle = '#F5F2E6';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(60, 178);
-        ctx.lineTo(260, 178);
-        ctx.stroke();
-
-        // Call/Message Pill
-        ctx.fillStyle = '#F9F7EF';
-        ctx.beginPath();
-        ctx.roundRect(60, 210, 280, 44, 22);
-        ctx.fill();
-
-        ctx.fillStyle = '#2A160F';
-        ctx.font = 'bold 16px sans-serif';
-        ctx.fillText('📞 Call   ✉️ Emergency', 90, 238);
-
-        // Bullet Points
-        ctx.fillStyle = '#F5F2E6';
-        ctx.font = '16px serif';
-        ctx.fillText(`• Vehicle: ${v.nickname}`, 60, 300);
-        ctx.fillText('• Please move your car', 60, 335);
-        ctx.fillText('• Call in case of accident', 60, 370);
-        ctx.fillText('• Emergency info inside', 60, 405);
-      }
-
-      const pngFile = canvas.toDataURL('image/png');
-      const downloadLink = document.createElement('a');
-      const filename = v.nickname.toLowerCase().replace(/\s+/g, '-');
-      downloadLink.download = `callngo-card-${filename}.png`;
-      downloadLink.href = pngFile;
-      downloadLink.click();
-    };
-
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-  };
 
   const handleLogOut = async () => {
     await supabase.auth.signOut();
@@ -1004,101 +907,30 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    {/* DUAL-PANEL QR CARD DISPLAY */}
-                    <div className="w-full rounded-2xl overflow-hidden border border-[#523326] shadow-lg flex flex-col md:flex-row">
-                      
-                      {/* Left Panel */}
-                      <div className="md:w-1/2 bg-[#2A1812] p-6 text-[#F5F2E6] flex flex-col items-center text-center justify-between border-b md:border-b-0 md:border-r border-[#3D231A]">
-                        <div className="w-16 h-16 rounded-full border border-[#D4A254]/40 flex items-center justify-center bg-[#1E0F0A]/60 shadow-inner mb-3">
-                          <span className="text-2xl">🚗</span>
+                    {/* VEHICLE STATUS & CALLER LINK */}
+                    <div className="w-full p-4 rounded-2xl bg-white border border-[#E4DCD0] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase tracking-wider border border-emerald-200">
+                            ✓ Activated Sticker
+                          </span>
+                          <span className="text-[11px] text-[#7A6657] font-mono">
+                            ID: {v.id.substring(0, 13)}...
+                          </span>
                         </div>
-
-                        <div className="mb-4">
-                          <h4 className="text-lg font-bold font-serif text-[#F5F2E6]">Scan the QR</h4>
-                          <h4 className="text-lg font-bold font-serif text-[#F5F2E6] underline underline-offset-4 decoration-[#D4A254]">
-                            connect the owner
-                          </h4>
-                        </div>
-
-                        <div className="px-5 py-2 rounded-full bg-[#F9F7EF] text-[#2A160F] font-bold text-xs flex items-center gap-3 shadow-md mb-4 border border-[#EBE8D8]">
-                          <span>📞 Voice Call</span>
-                          <span>|</span>
-                          <span>🚨 Emergency</span>
-                        </div>
-
-                        <ul className="text-left text-xs space-y-1.5 text-[#E2DACD] font-serif w-full max-w-xs">
-                          <li>• Vehicle: {v.nickname} ({v.plate_number})</li>
-                          <li>• Please move your car</li>
-                          <li>• Call in case of accident</li>
-                        </ul>
+                        <p className="text-[#6E5A4C] mt-1 text-[11px]">
+                          Physical QR sticker linked to your emergency contact profile.
+                        </p>
                       </div>
 
-                      {/* Right Panel with Vehicle-Specific QR Code */}
-                      <div className="md:w-1/2 bg-[#EAE7D7] p-6 text-[#2A160F] flex flex-col items-center justify-between text-center min-h-[300px]">
-                        <div className="text-lg font-bold tracking-[0.25em] font-mono text-[#2A160F] uppercase mt-1">
-                          C A L L N G O
-                        </div>
-
-                        {/* Hidden QR ref container for canvas rendering */}
-                        <div
-                          ref={(el) => { qrRefs.current[v.id] = el; }}
-                          className="p-3 bg-[#EAE7D7] rounded-xl flex items-center justify-center shadow-inner my-2"
-                        >
-                          <QRCodeSVG
-                            value={carQrUrl}
-                            size={160}
-                            bgColor="#EAE7D7"
-                            fgColor="#2A160F"
-                            level="H"
-                            marginSize={1}
-                          />
-                        </div>
-
-                        <div className="text-xs font-mono font-bold text-[#2A160F] tracking-wider uppercase mb-1">
-                          PLATE: {v.plate_number}
-                        </div>
-
-                        <span className="px-4 py-1 rounded-full bg-[#2A1711] text-[#EAE7D7] text-[11px] font-bold tracking-wider font-mono">
-                          callngo.app
-                        </span>
-                      </div>
-
-                    </div>
-
-                    {/* Actions Bar for this vehicle */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(carQrUrl);
-                            setCopiedVehId(v.id);
-                            setTimeout(() => setCopiedVehId(null), 2000);
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#F4EFE6] text-[#4A2E20] border border-[#E4DCD0] font-semibold transition flex items-center gap-1.5"
-                        >
-                          {copiedVehId === v.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                          {copiedVehId === v.id ? 'Copied!' : 'Copy QR Link'}
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleDownloadVehicleQR(v)}
-                          className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm"
-                        >
-                          <Download className="w-3.5 h-3.5 text-[#D4A254]" />
-                          Download Card PNG
-                        </button>
-
-                        <Link
-                          href={`/c/${v.id}`}
-                          target="_blank"
-                          className="px-4 py-2 rounded-xl bg-white hover:bg-[#F4EFE6] text-[#4A2E20] border border-[#E4DCD0] font-semibold transition flex items-center gap-1.5"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5 text-[#B5822B]" />
-                          Open Live Caller Page
-                        </Link>
-                      </div>
+                      <Link
+                        href={`/c/${v.id}`}
+                        target="_blank"
+                        className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-[#D4A254]" />
+                        Open Live Caller Page
+                      </Link>
                     </div>
 
                   </div>
