@@ -1,4 +1,4 @@
--- CallNGo Full Schema & RLS Migration
+-- CallNGo Idempotent Full Schema & RLS Migration
 
 -- 1. Create profiles table
 create table if not exists public.profiles (
@@ -20,23 +20,26 @@ alter table public.profiles add column if not exists health_issues text;
 alter table public.profiles add column if not exists medications text;
 alter table public.profiles add column if not exists allergies text;
 
--- 2. Create cars table with vehicle details
+-- 2. Create cars table with vehicle details (owner_id nullable for pre-printed QR stickers)
 create table if not exists public.cars (
   id uuid primary key default gen_random_uuid(),
-  owner_id uuid references public.profiles(id) on delete cascade not null,
-  nickname text not null,
+  owner_id uuid references public.profiles(id) on delete set null,
+  nickname text,
   model_number text,
   plate_number text,
   address text,
   emergency_contact text,
+  activated_at timestamptz,
   created_at timestamptz default now()
 );
 
--- Ensure columns exist if table already created
+alter table public.cars alter column owner_id drop not null;
+alter table public.cars alter column nickname drop not null;
 alter table public.cars add column if not exists model_number text;
 alter table public.cars add column if not exists plate_number text;
 alter table public.cars add column if not exists address text;
 alter table public.cars add column if not exists emergency_contact text;
+alter table public.cars add column if not exists activated_at timestamptz;
 
 -- 3. Create push_subscriptions table
 create table if not exists public.push_subscriptions (
@@ -57,14 +60,17 @@ alter table public.push_subscriptions enable row level security;
 --------------------------------------------------
 -- RLS POLICIES FOR PROFILES
 --------------------------------------------------
+drop policy if exists "Users can view own profile" on public.profiles;
 create policy "Users can view own profile"
   on public.profiles for select
   using (auth.uid() = id);
 
+drop policy if exists "Users can update own profile" on public.profiles;
 create policy "Users can update own profile"
   on public.profiles for update
   using (auth.uid() = id);
 
+drop policy if exists "Users can insert own profile" on public.profiles;
 create policy "Users can insert own profile"
   on public.profiles for insert
   with check (auth.uid() = id);
@@ -72,58 +78,70 @@ create policy "Users can insert own profile"
 --------------------------------------------------
 -- RLS POLICIES FOR CARS
 --------------------------------------------------
--- Authenticated car owners can view, update, insert, and delete their own cars
+drop policy if exists "Owners can view own cars" on public.cars;
 create policy "Owners can view own cars"
   on public.cars for select
   using (auth.uid() = owner_id);
 
+drop policy if exists "Owners can insert own cars" on public.cars;
 create policy "Owners can insert own cars"
   on public.cars for insert
   with check (auth.uid() = owner_id);
 
+drop policy if exists "Owners can update own cars" on public.cars;
 create policy "Owners can update own cars"
   on public.cars for update
-  using (auth.uid() = owner_id);
+  using (owner_id is null or auth.uid() = owner_id);
 
+drop policy if exists "Owners can delete own cars" on public.cars;
 create policy "Owners can delete own cars"
   on public.cars for delete
   using (auth.uid() = owner_id);
 
--- Public policy:
--- Allows public read access to cars table (API endpoint ensures only nickname and id are exposed to callers)
-  create policy "Public can view car nickname by car id"
-    on public.cars for select
-    to anon, authenticated
-    using (true);
+drop policy if exists "Public can view car nickname by car id" on public.cars;
+create policy "Public can view car nickname by car id"
+  on public.cars for select
+  to anon, authenticated
+  using (true);
 
-  --------------------------------------------------
-  -- RLS POLICIES FOR PUSH SUBSCRIPTIONS
-  --------------------------------------------------
-  -- Users can only manage their own push subscriptions
-  create policy "Users can view own push subscriptions"
-    on public.push_subscriptions for select
-    using (auth.uid() = owner_id);
+--------------------------------------------------
+-- RLS POLICIES FOR PUSH SUBSCRIPTIONS
+--------------------------------------------------
+drop policy if exists "Users can view own push subscriptions" on public.push_subscriptions;
+create policy "Users can view own push subscriptions"
+  on public.push_subscriptions for select
+  using (auth.uid() = owner_id);
 
-  create policy "Users can insert own push subscriptions"
-    on public.push_subscriptions for insert
-    with check (auth.uid() = owner_id);
+drop policy if exists "Users can insert own push subscriptions" on public.push_subscriptions;
+create policy "Users can insert own push subscriptions"
+  on public.push_subscriptions for insert
+  with check (auth.uid() = owner_id);
 
-  create policy "Users can delete own push subscriptions"
-    on public.push_subscriptions for delete
-    using (auth.uid() = owner_id);
+drop policy if exists "Users can delete own push subscriptions" on public.push_subscriptions;
+create policy "Users can delete own push subscriptions"
+  on public.push_subscriptions for delete
+  using (auth.uid() = owner_id);
 
-  --------------------------------------------------
-  -- TRIGGER FOR AUTOMATIC PROFILE CREATION ON SIGNUP
-  --------------------------------------------------
-  create or replace function public.handle_new_user()
-  returns trigger as $$
-  begin
-    insert into public.profiles (id, full_name)
-    values (new.id, new.raw_user_meta_data->>'full_name');
-    return new;
-  end;
-  $$ language plpgsql security definer;
+--------------------------------------------------
+-- TRIGGER FOR AUTOMATIC PROFILE CREATION ON SIGNUP
+--------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, full_name, phone_number)
+  values (
+    new.id,
+    new.raw_user_meta_data->>'full_name',
+    new.raw_user_meta_data->>'phone_number'
+  )
+  on conflict (id) do update set
+    full_name = coalesce(excluded.full_name, public.profiles.full_name),
+    phone_number = coalesce(excluded.phone_number, public.profiles.phone_number);
+  return new;
+end;
+$$ language plpgsql security definer;
 
-  create or replace trigger on_auth_user_created
-    after insert on auth.users
-    for each row execute procedure public.handle_new_user();
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
