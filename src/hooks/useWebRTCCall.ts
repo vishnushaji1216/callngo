@@ -38,15 +38,31 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
   const localOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const remoteOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
 
-  // Helper to fetch ICE servers from server
+  // Optimized low-latency audio constraints for clear voice calls & echo cancellation
+  const getAudioConstraints = (): MediaTrackConstraints => ({
+    echoCancellation: { ideal: true },
+    noiseSuppression: { ideal: true },
+    autoGainControl: { ideal: true },
+    channelCount: { ideal: 1 }
+  });
+
+  // Helper to fetch ICE servers with low-latency STUN redundancy
   const getIceServers = async (): Promise<RTCIceServer[]> => {
+    const fallbackStuns: RTCIceServer[] = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' }
+    ];
+
     try {
       const res = await fetch('/api/turn');
       const data = await res.json();
-      return data.iceServers || [{ urls: 'stun:stun.l.google.com:19302' }];
+      return data.iceServers && data.iceServers.length > 0 ? data.iceServers : fallbackStuns;
     } catch (e) {
-      console.warn('Failed to fetch turn servers, fallback to default STUN', e);
-      return [{ urls: 'stun:stun.l.google.com:19302' }];
+      console.warn('Failed to fetch turn servers, fallback to redundant STUNs', e);
+      return fallbackStuns;
     }
   };
 
@@ -265,10 +281,13 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       setErrorMessage(null);
       setStatus('requesting_mic');
 
-      // 1. Request microphone permission
+      // 1. Request microphone permission with strict acoustic echo cancellation & low latency
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: getAudioConstraints(),
+          video: false
+        });
         localStreamRef.current = stream;
       } catch (err: any) {
         setStatus('error');
@@ -280,15 +299,25 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
       const newCallId = crypto.randomUUID();
       setCallId(newCallId);
 
-      // 3. Get ICE Servers
+      // 3. Get ICE Servers with low-latency configuration
       const iceServers = await getIceServers();
 
-      // 4. Create RTCPeerConnection
-      const pc = new RTCPeerConnection({ iceServers });
+      // 4. Create RTCPeerConnection with bundled policy & ICE pool
+      const pc = new RTCPeerConnection({
+        iceServers,
+        iceCandidatePoolSize: 10,
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require'
+      });
       peerConnectionRef.current = pc;
 
-      // Add local audio tracks
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      // Add local audio tracks & enforce constraints
+      stream.getAudioTracks().forEach((track) => {
+        if (track.applyConstraints) {
+          track.applyConstraints(getAudioConstraints()).catch(() => {});
+        }
+        pc.addTrack(track, stream);
+      });
 
       // Handle ICE candidates
       pc.onicecandidate = (event) => {
@@ -382,10 +411,13 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
 
       setStatus('requesting_mic');
 
-      // 1. Request microphone permission
+      // 1. Request microphone permission with strict acoustic echo cancellation & low latency
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: getAudioConstraints(),
+          video: false
+        });
         localStreamRef.current = stream;
       } catch (err: any) {
         setStatus('error');
@@ -393,15 +425,25 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
         return;
       }
 
-      // 2. Get ICE Servers
+      // 2. Get ICE Servers with low-latency configuration
       const iceServers = await getIceServers();
 
-      // 3. Create PeerConnection
-      const pc = new RTCPeerConnection({ iceServers });
+      // 3. Create PeerConnection with bundled policy & ICE pool
+      const pc = new RTCPeerConnection({
+        iceServers,
+        iceCandidatePoolSize: 10,
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require'
+      });
       peerConnectionRef.current = pc;
 
-      // Add local audio tracks
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      // Add local audio tracks & enforce constraints
+      stream.getAudioTracks().forEach((track) => {
+        if (track.applyConstraints) {
+          track.applyConstraints(getAudioConstraints()).catch(() => {});
+        }
+        pc.addTrack(track, stream);
+      });
 
       // Handle ICE candidates
       pc.onicecandidate = (event) => {

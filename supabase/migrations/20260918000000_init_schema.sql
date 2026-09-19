@@ -76,39 +76,39 @@ create policy "Owners can delete own cars"
 
 -- Public policy:
 -- Allows public read access to cars table (API endpoint ensures only nickname and id are exposed to callers)
-create policy "Public can view car nickname by car id"
-  on public.cars for select
-  to anon, authenticated
-  using (true);
+  create policy "Public can view car nickname by car id"
+    on public.cars for select
+    to anon, authenticated
+    using (true);
 
---------------------------------------------------
--- RLS POLICIES FOR PUSH SUBSCRIPTIONS
---------------------------------------------------
--- Users can only manage their own push subscriptions
-create policy "Users can view own push subscriptions"
-  on public.push_subscriptions for select
-  using (auth.uid() = owner_id);
+  --------------------------------------------------
+  -- RLS POLICIES FOR PUSH SUBSCRIPTIONS
+  --------------------------------------------------
+  -- Users can only manage their own push subscriptions
+  create policy "Users can view own push subscriptions"
+    on public.push_subscriptions for select
+    using (auth.uid() = owner_id);
 
-create policy "Users can insert own push subscriptions"
-  on public.push_subscriptions for insert
-  with check (auth.uid() = owner_id);
+  create policy "Users can insert own push subscriptions"
+    on public.push_subscriptions for insert
+    with check (auth.uid() = owner_id);
 
-create policy "Users can delete own push subscriptions"
-  on public.push_subscriptions for delete
-  using (auth.uid() = owner_id);
+  create policy "Users can delete own push subscriptions"
+    on public.push_subscriptions for delete
+    using (auth.uid() = owner_id);
 
---------------------------------------------------
--- TRIGGER FOR AUTOMATIC PROFILE CREATION ON SIGNUP
---------------------------------------------------
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  insert into public.profiles (id, full_name)
-  values (new.id, new.raw_user_meta_data->>'full_name');
-  return new;
-end;
-$$ language plpgsql security definer;
+  --------------------------------------------------
+  -- TRIGGER FOR AUTOMATIC PROFILE CREATION ON SIGNUP
+  --------------------------------------------------
+  create or replace function public.handle_new_user()
+  returns trigger as $$
+  begin
+    insert into public.profiles (id, full_name)
+    values (new.id, new.raw_user_meta_data->>'full_name');
+    return new;
+  end;
+  $$ language plpgsql security definer;
 
-create or replace trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+  create or replace trigger on_auth_user_created
+    after insert on auth.users
+    for each row execute procedure public.handle_new_user();
