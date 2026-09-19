@@ -2,15 +2,24 @@
 
 import { use, useEffect, useState } from 'react';
 import { useWebRTCCall } from '@/hooks/useWebRTCCall';
-import { Phone, Mic, MicOff, PhoneOff, ShieldCheck, AlertCircle, Check, Hash } from 'lucide-react';
+import { Phone, Mic, MicOff, PhoneOff, ShieldCheck, AlertCircle, Check, Hash, PhoneCall, HeartPulse, AlertTriangle } from 'lucide-react';
 import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
 
 export default function PublicCarPage({ params }: { params: Promise<{ carId: string }> }) {
   const resolvedParams = use(params);
   const carId = resolvedParams.carId;
 
-  const [carNickname, setCarNickname] = useState<string>('Loading car details...');
+  const [carNickname, setCarNickname] = useState<string>('Loading vehicle...');
+  const [modelNumber, setModelNumber] = useState<string>('');
   const [plateNumber, setPlateNumber] = useState<string>('');
+
+  // Emergency & Medical Info
+  const [emergencyContact, setEmergencyContact] = useState<string>('');
+  const [bloodGroup, setBloodGroup] = useState<string>('');
+  const [healthIssues, setHealthIssues] = useState<string>('');
+  const [medications, setMedications] = useState<string>('');
+  const [allergies, setAllergies] = useState<string>('');
+
   const [loadingCar, setLoadingCar] = useState<boolean>(true);
   const [selectedReason, setSelectedReason] = useState<string>('Please move your car');
 
@@ -32,22 +41,28 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
   const quickReasons = [
     'Please move your car',
     'Your headlight is on',
-    'Call in case of accident',
+    'Accident emergency alert',
     'Your vehicle is in my way'
   ];
 
-  // Fetch public car details (id, nickname, plate_number)
+  // Fetch public vehicle & emergency profile details
   useEffect(() => {
     if (!carId) return;
 
     fetch(`/api/cars/${carId}/public`)
       .then((res) => {
-        if (!res.ok) throw new Error('Car not found');
+        if (!res.ok) throw new Error('Vehicle not found');
         return res.json();
       })
       .then((data) => {
         setCarNickname(data.nickname || 'Vehicle');
+        setModelNumber(data.model_number || '');
         setPlateNumber(data.plate_number || '');
+        setEmergencyContact(data.emergency_contact || '');
+        setBloodGroup(data.blood_group || '');
+        setHealthIssues(data.health_issues || '');
+        setMedications(data.medications || '');
+        setAllergies(data.allergies || '');
         setLoadingCar(false);
       })
       .catch((err) => {
@@ -71,29 +86,78 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
         {/* Brand Header */}
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#B5822B] mb-6 font-mono">
           <ShieldCheck className="w-4 h-4 text-[#B5822B]" />
-          CALL N GO PRIVATE CALL
+          CALL N GO VEHICLE & EMERGENCY CARD
         </div>
 
-        {/* Car Identity */}
+        {/* Vehicle Icon */}
         <div className="w-20 h-20 rounded-full bg-[#FAF6EE] border border-[#E4DCD0] flex items-center justify-center mb-4 text-3xl shadow-inner">
           🚗
         </div>
 
+        {/* Vehicle Name & Model */}
         <h1 className="text-2xl sm:text-3xl font-bold text-[#2C1A12] mb-1 font-serif tracking-tight">
           {loadingCar ? 'Loading...' : carNickname}
         </h1>
 
+        {modelNumber && (
+          <p className="text-xs text-[#7A6657] font-semibold mb-2">
+            Model: {modelNumber}
+          </p>
+        )}
+
         {/* Vehicle Plate Number Badge */}
         {plateNumber && (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F4EFE6] border border-[#DCD3C1] text-[#4A2E20] text-xs font-mono font-bold mb-3">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F4EFE6] border border-[#DCD3C1] text-[#4A2E20] text-xs font-mono font-bold mb-4">
             <Hash className="w-3.5 h-3.5 text-[#B5822B]" />
             Plate: {plateNumber}
           </div>
         )}
 
+        {/* EMERGENCY / ACCIDENT MEDICAL CARD */}
+        {(emergencyContact || bloodGroup || healthIssues || medications || allergies) && (
+          <div className="w-full bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 text-left space-y-3 shadow-sm">
+            <div className="flex items-center justify-between border-b border-red-200/80 pb-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-red-900 uppercase tracking-wider">
+                <HeartPulse className="w-4 h-4 text-red-600" />
+                Emergency & Medical Card
+              </span>
+
+              {bloodGroup && (
+                <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white font-mono font-bold text-xs">
+                  🩸 {bloodGroup}
+                </span>
+              )}
+            </div>
+
+            {emergencyContact && (
+              <div className="flex items-center justify-between gap-2 bg-white p-2.5 rounded-xl border border-red-200">
+                <div>
+                  <span className="block text-[10px] font-bold uppercase text-red-700">Emergency Family Contact</span>
+                  <span className="text-xs font-mono font-bold text-[#2C1A12]">{emergencyContact}</span>
+                </div>
+                <a
+                  href={`tel:${emergencyContact}`}
+                  className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center gap-1 shadow-sm"
+                >
+                  <PhoneCall className="w-3 h-3" />
+                  Call
+                </a>
+              </div>
+            )}
+
+            {(healthIssues || medications || allergies) && (
+              <div className="space-y-1 text-xs text-red-950 pt-1">
+                {healthIssues && <p><strong>Health Issues:</strong> {healthIssues}</p>}
+                {medications && <p><strong>Medications:</strong> {medications}</p>}
+                {allergies && <p><strong>Allergies:</strong> {allergies}</p>}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF6EE] border border-[#DCD3C1] text-[#7A6657] text-xs font-semibold mb-6">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          Your number stays 100% private
+          Owner phone number remains private
         </div>
 
         <IOSInstallPrompt />
@@ -267,4 +331,3 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
     </main>
   );
 }
-

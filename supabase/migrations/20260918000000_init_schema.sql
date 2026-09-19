@@ -4,14 +4,28 @@
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
+  phone_number text,
+  emergency_contact text,
+  blood_group text,
+  health_issues text,
+  medications text,
+  allergies text,
   created_at timestamptz default now()
 );
 
--- 2. Create cars table with vehicle details, address, and emergency contact
+alter table public.profiles add column if not exists phone_number text;
+alter table public.profiles add column if not exists emergency_contact text;
+alter table public.profiles add column if not exists blood_group text;
+alter table public.profiles add column if not exists health_issues text;
+alter table public.profiles add column if not exists medications text;
+alter table public.profiles add column if not exists allergies text;
+
+-- 2. Create cars table with vehicle details
 create table if not exists public.cars (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid references public.profiles(id) on delete cascade not null,
   nickname text not null,
+  model_number text,
   plate_number text,
   address text,
   emergency_contact text,
@@ -19,6 +33,7 @@ create table if not exists public.cars (
 );
 
 -- Ensure columns exist if table already created
+alter table public.cars add column if not exists model_number text;
 alter table public.cars add column if not exists plate_number text;
 alter table public.cars add column if not exists address text;
 alter table public.cars add column if not exists emergency_contact text;
