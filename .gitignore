@@ -19,7 +19,9 @@
 
 # production
 /build
-
+/src/uptime_build
+/src/uptime_output
+uptime.py
 # misc
 .DS_Store
 *.pem
