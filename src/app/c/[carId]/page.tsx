@@ -920,10 +920,16 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
               </button>
             </div>
 
-            {/* ANTI-SPAM DISCLAIMER NOTE (Screenshot 1) */}
-            <p className="text-[10px] text-gray-500 leading-tight text-center mt-3 px-2">
-              Please Note any kind of spam will get your IP and Number blocked on platform for upto 6 Months.
-            </p>
+            {/* ANTI-SPAM & 59S DISCLAIMER NOTE (Screenshot 1) */}
+            <div className="mt-3 p-2 rounded-xl bg-amber-50/70 border border-amber-200/60 text-center space-y-1">
+              <p className="text-[10px] font-bold text-amber-900 flex items-center justify-center gap-1">
+                <Clock className="w-3 h-3 text-amber-700" />
+                <span>Masked calls are strictly capped at 59 seconds.</span>
+              </p>
+              <p className="text-[9.5px] text-amber-800 leading-tight">
+                Your IP address is recorded. Any spam or abuse will result in an immediate block of your IP & phone number for up to 6 months.
+              </p>
+            </div>
 
             {/* SECONDARY ACTION BUTTONS: Documents & Emergency (Screenshot 1) */}
             <div className="grid grid-cols-2 gap-3 mt-4">
@@ -1078,6 +1084,17 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
                   placeholder="Your Phone"
                   className="w-full mt-2 px-3 py-2.5 rounded-xl border border-gray-300 focus:border-black bg-white text-black text-xs outline-none"
                 />
+              </div>
+
+              {/* Security & 59s Duration Warning */}
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-left space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900">
+                  <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span>Max Call Duration: 59 Seconds</span>
+                </div>
+                <p className="text-[10.5px] text-amber-800 leading-relaxed">
+                  Calls are capped at 59 seconds. Your IP address is logged; any spam or abuse will result in an immediate block of your IP and phone number.
+                </p>
               </div>
 
               {/* Error Message */}
