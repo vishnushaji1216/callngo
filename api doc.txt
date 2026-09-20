@@ -1,0 +1,703 @@
+API Reference
+Programmatic access to the Edesy number masking platform. Base URL: https://voice-api.edesy.in/v1
+
+Quick start
+Make your first masked call in under a minute. Replace the API key with your own (create one on the API Keys page), then run this in your terminal:
+
+cURL
+Node.js
+Python
+PHP
+Copy
+curl -X POST https://voice-api.edesy.in/v1/masking/calls \
+  -H "Authorization: Bearer vp_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "party_a": "9876543210",
+        "party_b": "9123456789"
+      }'
+That's it — we dial Party A, and when they answer we bridge Party B. Both parties see the masked number as caller ID. The response includes a call_sid you can use to poll status and fetch the recording.
+
+Authentication
+All API requests are authenticated with a Bearer token. Treat your API key like a password — store it in an environment variable, never commit it to source control.
+
+Authentication
+Every request must include an Authorization header with your API key:
+
+Authorization: Bearer vp_your_api_key_here
+Your key starts with vp_d1bd962b1... — the full key was shown only once when you created it. Manage keys on the API Keys page.
+
+Your tenant ID (this workspace) — it appears as tenant_id on webhook events, call records, and request logs. You don't send it with requests; your key is already scoped to it.
+
+9f79e304-cc68-43d0-9d25-a8b9b2d37d59
+
+Session API
+Send two phone numbers, get back one temporary virtual number. Both parties use that same number to reach each other — we route each call to the opposite party based on who is calling, so neither ever sees the other's real number. Sessions expire automatically and hundreds can be active at once. A session is generic: use it for delivery, ride-hailing, marketplaces, classifieds — anything that needs two people to talk without sharing numbers.
+
+Before you start
+
+Buy a DID in the voice-app portal and enroll it into masking (Numbers → Add number). Enrolled numbers form the pool the session API allocates from — a virtual number is reused across many concurrent sessions as long as no participant appears on it twice, so a small pool covers a lot of sessions. Sized by peak concurrent sessions, not total.
+
+Create a Session
+POST
+/masking/sessions
+Binds two real numbers to one virtual number for a limited lifetime and returns the virtual number. Either party can then call that number and is bridged to the other — routing is decided by who is calling, so the same number works in both directions. Idempotent on `reference`: repeating the call for an active reference returns the existing session.
+
+Body Parameters
+Name	Type	Required	Description
+party_a	string	Yes	First participant — 10-digit Indian mobile (with or without +91/91; we normalize).
+party_b	string	Yes	Second participant. Either party may call the virtual number.
+reference	string	No	Your external id for this session (order/ride/ticket id). Makes create idempotent and appears on events + CDRs.
+expiry_minutes	integer	No	Auto-expire the session after this many minutes (1–43200). Omit for no expiry — end it explicitly instead.
+max_calls	integer	No	Optional cap on the number of calls this session will route.
+metadata	object	No	Arbitrary JSON stored with the session and echoed back on reads.
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl -X POST https://voice-api.edesy.in/v1/masking/sessions \
+  -H "Authorization: Bearer vp_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "party_a": "9876543210",
+        "party_b": "9123456789",
+        "reference": "ORD-4821",
+        "expiry_minutes": 30
+      }'
+Responses
+201
+Session created (or the existing one for this reference)
+{
+  "data": {
+    "session_id": "3f9a1c72-5b8e-4d21-9c34-7a2e6f0b1d55",
+    "virtual_number": "918071387146",
+    "party_a": "9876543210",
+    "party_b": "9123456789",
+    "reference": "ORD-4821",
+    "status": "active",
+    "expires_at": "2026-07-14T18:30:00Z",
+    "total_calls": 0,
+    "created_at": "2026-07-14T18:00:00Z"
+  }
+}
+422
+No free virtual number, same party twice, or reference already active with different parties
+{
+  "error": {
+    "code": "session_error",
+    "message": "all 1 enrolled masking numbers are busy for these parties; enroll more numbers to add capacity"
+  }
+}
+List Sessions
+GET
+/masking/sessions
+Returns your masking sessions, newest first (paginated). Filter by status to see what's currently live — e.g. status=active lists every session holding a virtual number right now, which is what you inspect when a Create call returns "all numbers busy".
+
+Query Parameters
+Name	Type	Required	Description
+status	string	No	Filter by status: "active", "paused", or "expired". Omit for all.
+phone	string	No	Find sessions involving a number — matches party_a, party_b or the virtual number. Formatting and a +91/0 prefix are ignored; a partial number works too.
+page	integer	No	Page number (1-based). Default 1.
+per_page	integer	No	Results per page (default 20).
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl 'https://voice-api.edesy.in/v1/masking/sessions' \
+  -H "Authorization: Bearer vp_YOUR_API_KEY"
+Responses
+200
+Paginated list of sessions
+{
+  "data": [
+    {
+      "session_id": "3f9a1c72-5b8e-4d21-9c34-7a2e6f0b1d55",
+      "virtual_number": "918071387146",
+      "party_a": "9876543210",
+      "party_b": "9123456789",
+      "reference": "ORD-4821",
+      "status": "active",
+      "expires_at": "2026-07-14T18:30:00Z",
+      "total_calls": 2,
+      "created_at": "2026-07-14T18:00:00Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "per_page": 20,
+    "total": 1
+  }
+}
+Get Session Status
+GET
+/masking/sessions/:id
+Returns a session's current status (active, paused, expired) and details.
+
+Path Parameters
+Name	Type	Required	Description
+id	string (UUID)	Yes	The session_id returned by Create a Session.
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl 'https://voice-api.edesy.in/v1/masking/sessions/3f9a1c72-5b8e-4d21-9c34-7a2e6f0b1d55' \
+  -H "Authorization: Bearer vp_YOUR_API_KEY"
+Responses
+200
+Current session state
+{
+  "data": {
+    "session_id": "3f9a1c72-5b8e-4d21-9c34-7a2e6f0b1d55",
+    "virtual_number": "918071387146",
+    "party_a": "9876543210",
+    "party_b": "9123456789",
+    "reference": "ORD-4821",
+    "status": "active",
+    "expires_at": "2026-07-14T18:30:00Z",
+    "total_calls": 2,
+    "created_at": "2026-07-14T18:00:00Z"
+  }
+}
+404
+No such session
+{
+  "error": {
+    "code": "not_found",
+    "message": "Session not found"
+  }
+}
+Extend or Pause a Session
+PATCH
+/masking/sessions/:id
+Extend the expiry (e.g. the order is still active) and/or pause/resume routing. Send expiry_minutes to reset the expiry to now + N minutes, and/or status to pause (block calls) or resume.
+
+Path Parameters
+Name	Type	Required	Description
+id	string (UUID)	Yes	The session_id.
+Body Parameters
+Name	Type	Required	Description
+expiry_minutes	integer	No	Reset the session expiry to now + this many minutes (1–43200).
+status	string	No	"paused" to block routing, "active" to resume.
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl -X PATCH https://voice-api.edesy.in/v1/masking/sessions/3f9a1c72-5b8e-4d21-9c34-7a2e6f0b1d55 \
+  -H "Authorization: Bearer vp_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "expiry_minutes": 30
+      }'
+Responses
+200
+Updated session
+{
+  "data": {
+    "session_id": "3f9a1c72-5b8e-4d21-9c34-7a2e6f0b1d55",
+    "virtual_number": "918071387146",
+    "status": "active",
+    "expires_at": "2026-07-14T19:00:00Z"
+  }
+}
+End a Session
+DELETE
+/masking/sessions/:id
+Ends the session immediately: the virtual number stops routing between these parties and is freed for reuse. A session.expired event fires. Idempotent.
+
+Path Parameters
+Name	Type	Required	Description
+id	string (UUID)	Yes	The session_id.
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl -X DELETE https://voice-api.edesy.in/v1/masking/sessions/3f9a1c72-5b8e-4d21-9c34-7a2e6f0b1d55 \
+  -H "Authorization: Bearer vp_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+Responses
+200
+Session ended
+{
+  "data": {
+    "session_id": "3f9a1c72-5b8e-4d21-9c34-7a2e6f0b1d55",
+    "virtual_number": "918071387146",
+    "status": "expired"
+  }
+}
+Event webhooks
+Register one endpoint to be notified of session and call lifecycle events. We POST JSON as they happen, signed with HMAC-SHA256 so you can verify it came from us.
+
+Event	Fires when
+session.created	A session is created (a virtual number is bound to two parties).
+call.incoming	A masked call arrives and is about to be bridged to the other party.
+call.connected	The other party answered — the two are now talking.
+call.ended	A connected call finished normally (includes duration_sec).
+call.missed	A call failed, was busy, or went unanswered.
+session.expired	A session ended — via End a Session or automatic TTL expiry.
+Example delivery (headers + body):
+
+POST https://api.yourapp.com/edesy/events
+Content-Type: application/json
+User-Agent: edesy-masking/1.0
+X-Edesy-Signature: sha256=<HMAC-SHA256 of the raw body, keyed with your secret>
+
+{
+  "event": "call.ended",
+  "reference": "ORD-4821",
+  "virtual_number": "918071387146",
+  "caller": "9876543210",
+  "callee": "9123456789",
+  "direction": "a_to_b",
+  "call_sid": "d28be7cd-9840-4b23-9627-199f1ef81fc6",
+  "duration_sec": 74,
+  "status": "completed",
+  "timestamp": "2026-07-14T18:12:40Z"
+}
+Verify the signature:
+
+// Node.js — verify an event came from Edesy
+const crypto = require("crypto");
+const expected =
+  "sha256=" + crypto.createHmac("sha256", YOUR_SECRET).update(rawBody).digest("hex");
+if (expected !== req.headers["x-edesy-signature"]) {
+  return res.status(401).end();
+}
+Configure Event Webhook
+PUT
+/masking/event-webhook
+Register one endpoint to receive session/call lifecycle events. We POST JSON, signed with HMAC-SHA256 in X-Edesy-Signature. Also settable in the portal under Settings → Event webhook.
+
+Body Parameters
+Name	Type	Required	Description
+url	string	Yes	Your HTTPS endpoint.
+secret	string	No	Signing secret for X-Edesy-Signature. Leave blank to keep the existing one.
+enabled	boolean	No	Set false to pause deliveries without deleting config.
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl -X PUT https://voice-api.edesy.in/v1/masking/event-webhook \
+  -H "Authorization: Bearer vp_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "url": "https://api.yourapp.com/edesy/events",
+        "secret": "whsec_supersecret"
+      }'
+Responses
+200
+Saved
+{
+  "data": {
+    "url": "https://api.yourapp.com/edesy/events",
+    "enabled": true,
+    "has_secret": true
+  }
+}
+Endpoint reference
+Each endpoint below shows its method, path, parameters, a code sample in your language of choice, and example responses for the most common cases.
+
+Initiate a Call
+POST
+/masking/calls
+Dials Party A first; on answer, bridges Party B. Both parties see the masked number as the caller ID. Returns immediately with a call_sid — poll the status endpoint for progress.
+
+Body Parameters
+Name	Type	Required	Description
+party_a	string	Yes	10-digit Indian mobile number to dial first.
+party_b	string	Yes	10-digit Indian mobile number to bridge after Party A answers.
+max_duration_sec	integer	No	Optional. Maximum bridged-call duration in seconds (10–7200). The call is automatically ended once Party B has been connected for this long. Leave unset for no limit.
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl -X POST https://voice-api.edesy.in/v1/masking/calls \
+  -H "Authorization: Bearer vp_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "party_a": "9876543210",
+        "party_b": "9123456789"
+      }'
+Responses
+201
+Call initiated successfully
+{
+  "data": {
+    "call_sid": "d28be7cd-9840-4b23-9627-199f1ef81fc6",
+    "status": "initiated",
+    "party_a": "9876543210",
+    "party_b": "9123456789",
+    "masked_number": "917969002802"
+  }
+}
+402
+Wallet balance is too low to start the call
+{
+  "error": {
+    "code": "insufficient_balance",
+    "message": "Insufficient balance. Please add funds to continue making calls."
+  }
+}
+400
+Party A and Party B are the same number
+{
+  "error": {
+    "code": "invalid_numbers",
+    "message": "Party A and Party B cannot be the same number."
+  }
+}
+Get Call Status
+GET
+/masking/calls/:call_sid
+Returns the current state of a call. Poll this every 2-3 seconds until status reaches a terminal state (completed, failed, no-answer).
+
+Path Parameters
+Name	Type	Required	Description
+call_sid	string (UUID)	Yes	The call_sid returned by Initiate a Call.
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl 'https://voice-api.edesy.in/v1/masking/calls/d28be7cd-9840-4b23-9627-199f1ef81fc6' \
+  -H "Authorization: Bearer vp_YOUR_API_KEY"
+Responses
+200
+Current call state
+{
+  "data": {
+    "id": "d28be7cd-9840-4b23-9627-199f1ef81fc6",
+    "jambonz_call_sid": "31d9c8e2-1234-4567-89ab-cdef01234567",
+    "caller_number": "917969002802",
+    "target_number": "9876543210",
+    "masked_number": "917969002802",
+    "direction": "click_to_call",
+    "status": "completed",
+    "started_at": "2026-05-11T08:30:00Z",
+    "answered_at": "2026-05-11T08:30:08Z",
+    "ended_at": "2026-05-11T08:31:42Z",
+    "duration_sec": 94,
+    "bill_duration_sec": 120,
+    "hangup_cause": "NORMAL_CLEARING",
+    "price": 3,
+    "recording_url": "recordings/2026/05/11/d28be7cd.wav"
+  }
+}
+404
+No call exists with this call_sid
+{
+  "error": {
+    "code": "not_found",
+    "message": "Call not found"
+  }
+}
+Get Call Recording
+GET
+/masking/calls/:call_sid/recording
+Returns a short-lived signed URL (valid for 1 hour) that streams the MP3 recording. The URL is path-only and relative to the API origin — prefix it with https://voice-api.edesy.in to download. Recordings are typically available within a few seconds of the call ending.
+
+Path Parameters
+Name	Type	Required	Description
+call_sid	string (UUID)	Yes	The call_sid returned by Initiate a Call.
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl 'https://voice-api.edesy.in/v1/masking/calls/d28be7cd-9840-4b23-9627-199f1ef81fc6/recording' \
+  -H "Authorization: Bearer vp_YOUR_API_KEY"
+Responses
+200
+Presigned download URL (valid for 24h)
+{
+  "data": {
+    "url": "/v1/public/recordings/masking/d28be7cd-9840-4b23-9627-199f1ef81fc6?t=1747091400.aXKy3...",
+    "call_sid": "d28be7cd-9840-4b23-9627-199f1ef81fc6"
+  }
+}
+404
+Call has no recording (e.g. it never connected) or doesn't exist
+{
+  "error": {
+    "code": "not_found",
+    "message": "No recording available for this call"
+  }
+}
+List Call Logs
+GET
+/masking/call-logs
+Returns paginated call history with optional filters by status and date range.
+
+Query Parameters
+Name	Type	Required	Description
+page	integer	No	Page number (1-based). Default 1.
+per_page	integer	No	Results per page (max 100). Default 20.
+status	string	No	Filter by status: initiated, ringing, answered, in-progress, completed, failed, no-answer.
+start_date	RFC3339 datetime	No	Only return calls started after this timestamp.
+end_date	RFC3339 datetime	No	Only return calls started before this timestamp.
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl 'https://voice-api.edesy.in/v1/masking/call-logs' \
+  -H "Authorization: Bearer vp_YOUR_API_KEY"
+Responses
+200
+Paginated list of calls
+{
+  "data": [
+    {
+      "id": "d28be7cd-9840-4b23-9627-199f1ef81fc6",
+      "caller_number": "917969002802",
+      "target_number": "9876543210",
+      "masked_number": "917969002802",
+      "direction": "click_to_call",
+      "status": "completed",
+      "started_at": "2026-05-11T08:30:00Z",
+      "duration_sec": 94,
+      "price": 3
+    }
+  ],
+  "meta": {
+    "total": 142,
+    "page": 1,
+    "per_page": 20,
+    "total_pages": 8
+  }
+}
+Get Usage Stats
+GET
+/masking/stats
+Returns aggregate usage statistics for a date range. Defaults to the last 30 days.
+
+Query Parameters
+Name	Type	Required	Description
+start_date	RFC3339 datetime	No	Start of the period (inclusive).
+end_date	RFC3339 datetime	No	End of the period (inclusive).
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl 'https://voice-api.edesy.in/v1/masking/stats' \
+  -H "Authorization: Bearer vp_YOUR_API_KEY"
+Responses
+200
+Usage aggregates
+{
+  "data": {
+    "total_sessions": 0,
+    "active_sessions": 0,
+    "total_mappings": 0,
+    "total_calls": 142,
+    "total_minutes": 287.5,
+    "total_cost": 431.25,
+    "answered_calls": 138,
+    "failed_calls": 4
+  }
+}
+Get Wallet Balance
+GET
+/masking/billing
+Returns the current wallet balance. Useful for checking funds before initiating a call programmatically.
+
+Request
+cURL
+Node.js
+Python
+PHP
+Copy
+curl 'https://voice-api.edesy.in/v1/masking/billing' \
+  -H "Authorization: Bearer vp_YOUR_API_KEY"
+Responses
+200
+Current balance
+{
+  "data": {
+    "balance": 487.32,
+    "currency": "INR"
+  }
+}
+Call lifecycle
+A call moves through these states from initiation to termination. Poll the call status endpoint until you see a terminal state.
+
+initiated
+ringing
+answered
+in-progress
+completed
+Plus terminal failure states: failed · no-answer
+
+Status	Meaning
+initiated	Call request accepted; dialing Party A.
+ringing	Party A's phone is ringing.
+answered	Party A picked up; bridging Party B.
+in-progress	Both parties connected and talking.
+completed	Call ended normally. Recording available shortly.
+failed	Carrier or system error. See hangup_cause for details.
+no-answer	Party A did not pick up within the ring timeout.
+Poll GET /v1/masking/calls/:call_sid every 2–3 seconds. Stop polling once status is one of the three terminal values: completed, failed, or no-answer.
+
+Number Masking Webhook
+Bring your own routing: instead of storing pairings with us, point a masked number at your endpoint. For every inbound call we ask your webhook who to connect the caller to. Configure it per number under Numbers → Routing → Your webhook.
+
+1. We POST to your URL
+Method POST (or GET if you configured it), with these headers:
+
+Content-Type: application/json
+Accept: application/json
+User-Agent: edesy-masking/1.0
+X-Edesy-Signature: sha256=<HMAC-SHA256 of the raw body, keyed with your signing secret>
+Body:
+
+{
+  "event": "masking.route",
+  "call_sid": "b6f6e2a0-3c1d-4e8a-9f2b-2a1c9d4e5f60",
+  "caller": "9547531359",
+  "masked_number": "9484956709",
+  "direction": "inbound",
+  "timestamp": "2026-07-14T00:00:00Z"
+}
+A test event is identical but adds "test": true and an empty call_sid.
+
+Request fields
+Name	Type	Required	Description
+event	string	Yes	Always "masking.route".
+call_sid	string	Yes	Jambonz call ID. Empty string for test events.
+caller	string	Yes	Who is calling — 10 digits, country code stripped.
+masked_number	string	Yes	The masked DID that was dialed — 10 digits.
+direction	string	Yes	"inbound".
+test	boolean	No	Present and true only for test events (the “Send test event” button).
+timestamp	string	Yes	RFC 3339 UTC timestamp.
+2. Your webhook responds (within 5 seconds)
+Connect the call:
+
+200
+Bridge the caller to target_number
+{
+  "action": "connect",
+  "target_number": "9538822290"
+}
+Optionally override the number shown to the callee:
+
+200
+Connect with a custom caller ID
+{
+  "action": "connect",
+  "target_number": "9538822290",
+  "caller_id": "9484956709"
+}
+…or decline the call:
+
+200
+Reject the call
+{
+  "action": "reject",
+  "reject_reason": "Number not available"
+}
+Response fields
+Name	Type	Required	Description
+action	string	No	"connect" or "reject". If omitted but target_number is present, connect is assumed.
+target_number	string	No	Required for connect. 10 digits (with or without +91 / 91 — we normalize).
+caller_id	string	No	Optional. Overrides the masked number shown to the person being called.
+reject_reason	string	No	Optional message for a reject.
+3. Verify the signature (recommended)
+Compute an HMAC-SHA256 of the raw request body using your signing secret and compare it to the X-Edesy-Signature header.
+
+// Node.js — verify the request came from Edesy
+const crypto = require("crypto");
+const expected =
+  "sha256=" + crypto.createHmac("sha256", YOUR_SECRET).update(rawBody).digest("hex");
+if (expected !== req.headers["x-edesy-signature"]) {
+  return res.status(401).end();
+}
+Failure behavior: if your endpoint returns a non-2xx status, times out (>5s), or omits target_number, the call is rejected — unless you enabled “fall back to internal mappings” for the number, in which case it falls through to any internal pairing.
+Error codes
+Error responses use standard HTTP status codes plus an application code in the response body for programmatic handling.
+
+All error responses follow this shape:
+
+{
+  "error": {
+    "code": "insufficient_balance",
+    "message": "Insufficient balance. Please add funds to continue making calls."
+  }
+}
+HTTP	Code	Meaning	What to do
+401	unauthorized	Missing or invalid API key.	Verify the Authorization header. Re-create the key if needed.
+400	invalid_request	Request body could not be parsed.	Check JSON syntax and Content-Type header.
+400	validation_error	A required field is missing or malformed.	Read the error message; fix the offending field.
+400	invalid_numbers	Party A and Party B are the same number.	Use two different 10-digit Indian mobile numbers.
+402	insufficient_balance	Wallet balance too low to start the call.	Top up your wallet, then retry.
+404	not_found	The call_sid does not exist for your tenant.	Double-check the call_sid; calls older than retention may be purged.
+500	internal_error	Server-side error.	Retry after a few seconds. If persistent, contact support.
+Complete example
+A runnable script that initiates a call, polls until it ends, then fetches the recording URL. Copy, paste in your editor, replace the API key, and run.
+
+Node.js
+Python
+PHP
+Copy
+// Node.js 18+ — uses built-in fetch
+const API_KEY = "vp_YOUR_API_KEY";
+const BASE = "https://voice-api.edesy.in/v1";
+
+async function call(path, init = {}) {
+  const res = await fetch(BASE + path, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message || res.statusText);
+  return json.data;
+}
+
+// 1. Dial
+const { call_sid } = await call("/masking/calls", {
+  method: "POST",
+  body: JSON.stringify({ party_a: "9876543210", party_b: "9123456789" }),
+});
+console.log("Call initiated:", call_sid);
+
+// 2. Poll status every 2 seconds until terminal
+const terminal = new Set(["completed", "failed", "no-answer"]);
+let status;
+while (true) {
+  const log = await call(`/masking/calls/${call_sid}`);
+  status = log.status;
+  console.log("Status:", status);
+  if (terminal.has(status)) break;
+  await new Promise((r) => setTimeout(r, 2000));
+}
+
+// 3. Fetch the recording (if any)
+if (status === "completed") {
+  try {
+    const rec = await call(`/masking/calls/${call_sid}/recording`);
+    console.log("Recording URL (valid 24h):", rec.url);
+  } catch (e) {
+    console.log("No recording:", e.message);
+  }
+}

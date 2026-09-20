@@ -2,12 +2,15 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { ShieldCheck, User, Mail, Phone, PhoneCall, Plus, Car, Trash2, Edit2, Download, ExternalLink, Bell, CheckCircle2, BellOff, LogOut, Copy, Check, HeartPulse, AlertCircle, Save, Mic, MicOff, PhoneOff, Hash, Unlink, QrCode } from 'lucide-react';
+import { ShieldCheck, User, Mail, Phone, PhoneCall, Plus, Car, Trash2, Edit2, Download, ExternalLink, Bell, CheckCircle2, BellOff, LogOut, Copy, Check, HeartPulse, AlertCircle, Save, Mic, MicOff, PhoneOff, Hash, Unlink, QrCode, Camera, ShoppingBag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWebRTCCall } from '@/hooks/useWebRTCCall';
 import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
+import { QRScannerModal } from '@/components/QRScannerModal';
+import { ProductShopModal } from '@/components/ProductShopModal';
+import { ProductPricingCards } from '@/components/ProductPricingCards';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -66,6 +69,8 @@ export default function ProfilePage() {
 
   // Claim Pre-printed Sticker Form State
   const [showClaimSticker, setShowClaimSticker] = useState<boolean>(false);
+  const [showQRScanner, setShowQRScanner] = useState<boolean>(false);
+  const [showBuyModal, setShowBuyModal] = useState<boolean>(false);
   const [claimTagId, setClaimTagId] = useState<string>('');
   const [claimVehName, setClaimVehName] = useState<string>('');
   const [claimVehModel, setClaimVehModel] = useState<string>('');
@@ -284,6 +289,33 @@ export default function ProfilePage() {
       await loadUserData(user.id);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to unlink vehicle sticker' });
+    }
+  };
+
+  // Handle Scanning a physical QR sticker in Profile
+  const handleScanProfileSticker = async (scannedId: string) => {
+    setShowQRScanner(false);
+    try {
+      setMessage(null);
+      const res = await fetch(`/api/cars/${scannedId}/public`);
+      if (!res.ok) throw new Error('Could not check vehicle sticker');
+      const data = await res.json();
+
+      if (data.is_activated) {
+        setMessage({
+          type: 'error',
+          text: '⚠️ This vehicle sticker has already been claimed and registered! Please scan an unassigned sticker.'
+        });
+      } else {
+        setClaimTagId(scannedId);
+        setShowClaimSticker(true);
+        setMessage({
+          type: 'success',
+          text: `✅ Unclaimed Sticker (${scannedId.slice(0, 8)}...) verified! Please enter vehicle details below to activate and link it.`
+        });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Failed to verify sticker' });
     }
   };
 
@@ -673,16 +705,24 @@ export default function ProfilePage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setShowBuyModal(true)}
+                className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] font-bold text-xs transition flex items-center gap-1.5 shadow-sm"
+              >
+                <ShoppingBag className="w-4 h-4 text-[#B5822B]" />
+                Buy Tags
+              </button>
+
               <button
                 onClick={() => {
                   setShowAddVehicle(false);
-                  setShowClaimSticker(!showClaimSticker);
+                  setShowQRScanner(true);
                 }}
-                className="px-4 py-2.5 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] font-bold text-xs transition flex items-center gap-2 shadow-sm"
+                className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] font-bold text-xs transition flex items-center gap-1.5 shadow-sm"
               >
-                <QrCode className="w-4 h-4 text-[#B5822B]" />
-                {showClaimSticker ? 'Cancel' : 'Claim Sticker ID'}
+                <Camera className="w-4 h-4 text-[#B5822B]" />
+                Scan QR Sticker
               </button>
 
               <button
@@ -774,15 +814,11 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Sticker / Tag ID (from QR link) *</label>
-                <input
-                  type="text"
-                  required
-                  value={claimTagId}
-                  onChange={(e) => setClaimTagId(e.target.value)}
-                  placeholder="e.g. paste tag UUID or car ID from QR sticker"
-                  className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B] font-mono"
-                />
+                <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Scanned Physical Sticker ID</label>
+                <div className="px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-xs font-mono font-bold flex items-center justify-between">
+                  <span>{claimTagId}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">Unclaimed & Verified</span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -844,12 +880,34 @@ export default function ProfilePage() {
 
           {/* LIST OF VEHICLES */}
           {vehicles.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-3">
-              <div className="text-3xl">🚗</div>
-              <h3 className="text-base font-bold text-[#2C1A12]">No Vehicles Added Yet</h3>
-              <p className="text-xs text-[#7A6657] max-w-sm mx-auto">
-                Click "+ Add New Vehicle" above to register your car or bike and generate your unique QR sticker card.
-              </p>
+            <div className="space-y-6">
+              <div className="p-6 text-center rounded-3xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-3">
+                <span className="text-4xl inline-block">🚗</span>
+                <h3 className="text-lg font-bold text-[#2C1A12] font-serif">You haven&apos;t linked any vehicle card yet</h3>
+                <p className="text-xs text-[#7A6657] max-w-md mx-auto leading-relaxed">
+                  You are registered on CallNGo, but you haven&apos;t activated a vehicle tag. If you already received your sticker, scan it to link your car or bike. If you need tags, request a quote below!
+                </p>
+
+                <div className="pt-2 flex items-center justify-center gap-3 flex-wrap">
+                  <button
+                    onClick={() => setShowQRScanner(true)}
+                    className="px-5 py-2.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition shadow-md flex items-center gap-2"
+                  >
+                    <Camera className="w-4 h-4 text-[#D4A254]" />
+                    I Have a Sticker (Scan QR to Link)
+                  </button>
+                </div>
+              </div>
+
+              {/* BUY STICKERS & VALET CARDS PRICING CARDS */}
+              <div className="pt-2">
+                <ProductPricingCards
+                  title="Order CallNGo Stickers & Valet Cards"
+                  subtitle="Choose a package below to send a direct quote request via WhatsApp, Email, or Phone."
+                  userName={profile?.full_name || ''}
+                  userPhone={profile?.phone_number || ''}
+                />
+              </div>
             </div>
           ) : (
             <div className="space-y-6">
@@ -979,6 +1037,23 @@ export default function ProfilePage() {
         </section>
 
       </div>
+
+      {/* QR SCANNER MODAL */}
+      <QRScannerModal
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={handleScanProfileSticker}
+        title="Scan Sticker to Link Vehicle"
+        subtitle="Point camera at an unassigned CallNGo QR sticker to link to your account"
+      />
+
+      {/* BUY TAGS MODAL */}
+      <ProductShopModal
+        isOpen={showBuyModal}
+        onClose={() => setShowBuyModal(false)}
+        initialName={profile?.full_name || ''}
+        initialPhone={profile?.phone_number || ''}
+      />
     </main>
   );
 }

@@ -5,7 +5,7 @@ import { webpush } from '@/lib/vapid';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { carId, callId } = body;
+    const { carId, callId, reason } = body;
 
     if (!carId || !callId) {
       return NextResponse.json(
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       .eq('id', carId)
       .maybeSingle();
 
-    const carNickname = car?.nickname || 'Blue Swift';
+    const carNickname = car?.nickname || 'Vehicle';
     const carOwnerId = car?.owner_id;
 
     // 2. Query push subscriptions
@@ -55,8 +55,8 @@ export async function POST(req: NextRequest) {
 
     // 3. Prepare Push Payload
     const payload = JSON.stringify({
-      title: `Someone is near your ${carNickname}`,
-      body: 'Tap to answer',
+      title: reason ? `🚨 Alert: ${carNickname}` : `Someone is near your ${carNickname}`,
+      body: reason ? `${reason} (Tap to respond)` : 'Tap to answer',
       callId: callId,
       carId: carId
     });

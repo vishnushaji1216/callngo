@@ -2,16 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { ShieldCheck, User, Mail, Lock, PhoneCall, ChevronDown, Car, AlertTriangle, ArrowRight, LogOut, CheckCircle2, BellOff } from 'lucide-react';
+import { ShieldCheck, User, Mail, Lock, PhoneCall, ChevronDown, Car, AlertTriangle, ArrowRight, LogOut, CheckCircle2, BellOff, Camera, Sparkles, ShoppingBag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { QRScannerModal } from '@/components/QRScannerModal';
+import { ProductPricingCards } from '@/components/ProductPricingCards';
 
 export default function LandingPage() {
   const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [showScanner, setShowScanner] = useState<boolean>(false);
+  const [verifyingSticker, setVerifyingSticker] = useState<boolean>(false);
 
   // Registration Form States
   const [fullName, setFullName] = useState<string>('');
@@ -29,48 +33,30 @@ export default function LandingPage() {
     });
   }, []);
 
-  // Handle Registration Submit (Name, Phone, Email, Password)
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Handle Scanned Sticker for Registration
+  const handleScanSticker = async (scannedId: string) => {
+    setShowScanner(false);
     try {
-      setSubmittingAuth(true);
+      setVerifyingSticker(true);
       setMessage(null);
 
-      if (!fullName || !phoneNumber || !email || !password) {
-        throw new Error('Please fill in all required fields (Name, Phone Number, Email, Password)');
+      const res = await fetch(`/api/cars/${scannedId}/public`);
+      if (!res.ok) throw new Error('Could not check vehicle sticker');
+      const data = await res.json();
+
+      if (data.is_activated) {
+        setMessage({
+          type: 'error',
+          text: '⚠️ This vehicle sticker has already been claimed and registered! Please scan a new, unassigned sticker.'
+        });
+      } else {
+        // Unlinked sticker: redirect to register and activate this vehicle!
+        router.push(`/c/${scannedId}`);
       }
-
-      // 1. Supabase Auth Sign Up
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            phone_number: phoneNumber
-          }
-        }
-      });
-
-      if (authError || !authData.user) {
-        throw new Error(authError?.message || 'Registration failed');
-      }
-
-      const newUser = authData.user;
-
-      // 2. Insert Profile with full_name & phone_number
-      await supabase.from('profiles').upsert({
-        id: newUser.id,
-        full_name: fullName,
-        phone_number: phoneNumber
-      });
-
-      // 3. Redirect to Profile Page
-      router.push('/profile');
     } catch (err: any) {
-      console.error('Registration error:', err);
-      setMessage({ type: 'error', text: err.message || 'Registration failed' });
-      setSubmittingAuth(false);
+      setMessage({ type: 'error', text: err.message || 'Failed to verify sticker' });
+    } finally {
+      setVerifyingSticker(false);
     }
   };
 
@@ -141,30 +127,40 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {user ? (
-          <div className="flex items-center gap-3">
-            <Link
-              href="/profile"
-              className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-            >
-              Go to Profile →
-            </Link>
-            <button
-              onClick={handleLogOut}
-              className="px-3 py-2 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A3B32] text-xs font-semibold border border-[#E4DCD0] transition flex items-center gap-1"
-            >
-              <LogOut className="w-3.5 h-3.5 text-red-600" />
-              Log Out
-            </button>
-          </div>
-        ) : (
+        <div className="flex items-center gap-2">
           <button
-            onClick={scrollToAuth}
-            className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs font-bold transition shadow-sm"
+            onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })}
+            className="px-3 py-2 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
           >
-            Sign In / Register
+            <ShoppingBag className="w-3.5 h-3.5 text-[#B5822B]" />
+            Buy Tags
           </button>
-        )}
+
+          {user ? (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/profile"
+                className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              >
+                Go to Profile →
+              </Link>
+              <button
+                onClick={handleLogOut}
+                className="px-3 py-2 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A3B32] text-xs font-semibold border border-[#E4DCD0] transition flex items-center gap-1"
+              >
+                <LogOut className="w-3.5 h-3.5 text-red-600" />
+                Log Out
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={scrollToAuth}
+              className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs font-bold transition shadow-sm"
+            >
+              Sign In / Scan QR
+            </button>
+          )}
+        </div>
       </header>
 
       {/* HERO SECTION 1: ACCIDENT EMERGENCY */}
@@ -207,14 +203,19 @@ export default function LandingPage() {
           "Park anywhere. Stay reachable. Get notified when someone needs you — without sharing your number."
         </p>
 
-        {/* Scroll Down Indicator to Auth Section */}
+        {/* Scroll Down Indicator to Pricing Section */}
         <button
-          onClick={scrollToAuth}
+          onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })}
           className="flex flex-col items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#B5822B] hover:text-[#4A2E20] transition group cursor-pointer"
         >
-          <span>Scroll Down To Login or Register</span>
+          <span>Scroll Down For Products & Pricing</span>
           <ChevronDown className="w-5 h-5 animate-bounce text-[#B5822B] group-hover:text-[#4A2E20]" />
         </button>
+      </section>
+
+      {/* SECTION 3: PRODUCTS & PRICING */}
+      <section id="pricing-section" className="py-20 px-4 bg-[#FAF6EE]/50 border-t border-[#E4DCD0]/60">
+        <ProductPricingCards />
       </section>
 
       {/* BOTTOM AUTH SECTION: LOGIN OR REGISTER ONLY */}
@@ -305,78 +306,34 @@ export default function LandingPage() {
                 </button>
               </div>
 
-              {/* REGISTER FORM */}
+              {/* REGISTER VIA STICKER SCAN */}
               {authMode === 'signup' ? (
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Full Name *</label>
-                    <div className="relative">
-                      <User className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
-                      <input
-                        type="text"
-                        required
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="John Doe"
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                      />
-                    </div>
+                <div className="space-y-4 py-4 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#B5822B] flex items-center justify-center text-3xl mx-auto shadow-inner">
+                    📷
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Phone Number *</label>
-                    <div className="relative">
-                      <PhoneCall className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
-                      <input
-                        type="tel"
-                        required
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        placeholder="+91 9876543210"
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Email Address *</label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
-                      <input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="john@example.com"
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Password *</label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
-                      <input
-                        type="password"
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                      />
-                    </div>
+                    <h4 className="font-bold text-sm text-[#2C1A12]">Scan Physical Sticker to Register</h4>
+                    <p className="text-xs text-[#7A6657] mt-1 leading-relaxed max-w-xs mx-auto">
+                      Registration is strictly tied to your CallNGo QR code sticker. Scan your sticker to verify it is unassigned and create your vehicle account.
+                    </p>
                   </div>
 
                   <button
-                    type="submit"
-                    disabled={submittingAuth}
-                    className="w-full py-3.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-sm transition shadow-md flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                    type="button"
+                    onClick={() => setShowScanner(true)}
+                    disabled={verifyingSticker}
+                    className="w-full py-3.5 rounded-2xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-sm transition shadow-lg shadow-[#4A2E20]/20 flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    <ShieldCheck className="w-4 h-4 text-[#D4A254]" />
-                    {submittingAuth ? 'Creating Account...' : 'Register Account'}
+                    <Camera className="w-4 h-4 text-[#D4A254]" />
+                    {verifyingSticker ? 'Verifying Sticker...' : 'Scan QR Sticker to Register'}
                   </button>
-                </form>
+
+                  <p className="text-[11px] text-gray-500">
+                    Already registered? Switch to <strong className="cursor-pointer text-[#4A2E20] underline" onClick={() => setAuthMode('signin')}>Login</strong>.
+                  </p>
+                </div>
               ) : (
                 /* LOGIN FORM */
                 <form onSubmit={handleSignIn} className="space-y-4">
@@ -424,6 +381,15 @@ export default function LandingPage() {
 
         </div>
       </section>
+
+      {/* QR SCANNER MODAL */}
+      <QRScannerModal
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScan={handleScanSticker}
+        title="Scan Sticker to Register"
+        subtitle="Point camera at your CallNGo sticker QR code to activate your account"
+      />
     </main>
   );
 }

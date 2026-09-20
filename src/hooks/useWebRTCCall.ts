@@ -34,6 +34,7 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
   const carChannelRef = useRef<any>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const hangUpRef = useRef<() => void>(() => {});
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const localOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const remoteOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
@@ -255,12 +256,25 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
     };
   }, [carId, callId, initialCallId, role, handleSignalMessage]);
 
-  // Duration Timer for connected state
+  const MAX_CALL_DURATION = 59; // Enforce maximum 59 seconds per call
+
+  // Duration Timer for connected state with 59-second auto-disconnect
   useEffect(() => {
     if (status === 'connected') {
       setDuration(0);
       timerRef.current = setInterval(() => {
-        setDuration((prev) => prev + 1);
+        setDuration((prev) => {
+          if (prev >= MAX_CALL_DURATION - 1) {
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
+            // Auto hang up at 59 seconds
+            hangUpRef.current();
+            return MAX_CALL_DURATION;
+          }
+          return prev + 1;
+        });
       }, 1000);
     } else {
       if (timerRef.current) {
@@ -274,6 +288,8 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
   const formattedDuration = `${Math.floor(duration / 60)
     .toString()
     .padStart(2, '0')}:${(duration % 60).toString().padStart(2, '0')}`;
+  
+  const remainingSeconds = Math.max(0, MAX_CALL_DURATION - duration);
 
   // Method 1: CALLER Starts Call
   const startCall = async () => {
@@ -535,6 +551,7 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
     setStatus('ended');
     cleanup();
   };
+  hangUpRef.current = hangUp;
 
   // Method 5: Toggle Mute
   const toggleMute = () => {
@@ -553,6 +570,8 @@ export function useWebRTCCall({ carId, role, initialCallId, carNickname }: UseWe
     callId: callId || initialCallId,
     isMuted,
     duration,
+    remainingSeconds,
+    maxDuration: MAX_CALL_DURATION,
     formattedDuration,
     errorMessage,
     remoteAudioRef,
