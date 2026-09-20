@@ -175,33 +175,12 @@ export default function LandingPage() {
         </div>
 
         <h1 className="text-4xl sm:text-6xl font-extrabold font-serif text-[#2C1A12] tracking-tight leading-[1.15] mb-6">
-          🚨 In accident happens
+          🚨 If accident happens
         </h1>
 
-        <p className="text-lg sm:text-2xl font-serif text-[#6E5A4C] max-w-2xl mb-8 leading-relaxed">
+        <p className="text-lg sm:text-2xl font-serif text-[#6E5A4C] max-w-2xl mb-12 leading-relaxed">
           "Keep your loved ones informed. Your emergency contact is one scan away."
         </p>
-
-        {/* Feature Highlights */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl mb-12 text-left">
-          <div className="p-5 rounded-2xl bg-white border border-[#E4DCD0] shadow-sm">
-            <div className="text-2xl mb-2">🩸</div>
-            <h3 className="font-bold text-[#2C1A12] text-sm">Medical Profile</h3>
-            <p className="text-xs text-[#7A6657] mt-1">Instant display of blood group, allergies & medical conditions to first responders.</p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-white border border-[#E4DCD0] shadow-sm">
-            <div className="text-2xl mb-2">📞</div>
-            <h3 className="font-bold text-[#2C1A12] text-sm">Emergency Dial</h3>
-            <p className="text-xs text-[#7A6657] mt-1">Directly connects responders to your family contact in critical situations.</p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-white border border-[#E4DCD0] shadow-sm">
-            <div className="text-2xl mb-2">🔒</div>
-            <h3 className="font-bold text-[#2C1A12] text-sm">Strict Privacy</h3>
-            <p className="text-xs text-[#7A6657] mt-1">Your primary phone number remains confidential during routine calls.</p>
-          </div>
-        </div>
 
         {/* Scroll Down Indicator to Hero 2 */}
         <button
@@ -224,30 +203,9 @@ export default function LandingPage() {
           🚗 When You Park
         </h2>
 
-        <p className="text-lg sm:text-2xl font-serif text-[#6E5A4C] max-w-2xl mb-8 leading-relaxed">
+        <p className="text-lg sm:text-2xl font-serif text-[#6E5A4C] max-w-2xl mb-12 leading-relaxed">
           "Park anywhere. Stay reachable. Get notified when someone needs you — without sharing your number."
         </p>
-
-        {/* Feature Highlights */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl mb-12 text-left">
-          <div className="p-5 rounded-2xl bg-white border border-[#E4DCD0] shadow-sm">
-            <div className="text-2xl mb-2">📲</div>
-            <h3 className="font-bold text-[#2C1A12] text-sm">Instant Web Push</h3>
-            <p className="text-xs text-[#7A6657] mt-1">Receive real-time push call notifications directly on your phone browser.</p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-white border border-[#E4DCD0] shadow-sm">
-            <div className="text-2xl mb-2">🎙️</div>
-            <h3 className="font-bold text-[#2C1A12] text-sm">Voice Calling</h3>
-            <p className="text-xs text-[#7A6657] mt-1">Passersby can speak with you audio-to-audio in 1 click without any app download.</p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-white border border-[#E4DCD0] shadow-sm">
-            <div className="text-2xl mb-2">🏷️</div>
-            <h3 className="font-bold text-[#2C1A12] text-sm">Multi-Vehicle Cards</h3>
-            <p className="text-xs text-[#7A6657] mt-1">Generate custom printable QR code cards for all your cars and bikes.</p>
-          </div>
-        </div>
 
         {/* Scroll Down Indicator to Auth Section */}
         <button
