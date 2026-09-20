@@ -10,7 +10,6 @@ import { useWebRTCCall } from '@/hooks/useWebRTCCall';
 import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
 import { QRScannerModal } from '@/components/QRScannerModal';
 import { ProductShopModal } from '@/components/ProductShopModal';
-import { ProductPricingCards } from '@/components/ProductPricingCards';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -880,34 +879,12 @@ export default function ProfilePage() {
 
           {/* LIST OF VEHICLES */}
           {vehicles.length === 0 ? (
-            <div className="space-y-6">
-              <div className="p-6 text-center rounded-3xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-3">
-                <span className="text-4xl inline-block">🚗</span>
-                <h3 className="text-lg font-bold text-[#2C1A12] font-serif">You haven&apos;t linked any vehicle card yet</h3>
-                <p className="text-xs text-[#7A6657] max-w-md mx-auto leading-relaxed">
-                  You are registered on CallNGo, but you haven&apos;t activated a vehicle tag. If you already received your sticker, scan it to link your car or bike. If you need tags, request a quote below!
-                </p>
-
-                <div className="pt-2 flex items-center justify-center gap-3 flex-wrap">
-                  <button
-                    onClick={() => setShowQRScanner(true)}
-                    className="px-5 py-2.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition shadow-md flex items-center gap-2"
-                  >
-                    <Camera className="w-4 h-4 text-[#D4A254]" />
-                    I Have a Sticker (Scan QR to Link)
-                  </button>
-                </div>
-              </div>
-
-              {/* BUY STICKERS & VALET CARDS PRICING CARDS */}
-              <div className="pt-2">
-                <ProductPricingCards
-                  title="Order CallNGo Stickers & Valet Cards"
-                  subtitle="Choose a package below to send a direct quote request via WhatsApp, Email, or Phone."
-                  userName={profile?.full_name || ''}
-                  userPhone={profile?.phone_number || ''}
-                />
-              </div>
+            <div className="p-8 text-center rounded-3xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-2">
+              <span className="text-4xl inline-block">🚗</span>
+              <h3 className="text-lg font-bold text-[#2C1A12] font-serif">You haven&apos;t linked any vehicle card yet</h3>
+              <p className="text-xs text-[#7A6657] max-w-md mx-auto leading-relaxed">
+                You are registered on CallNGo, but you haven&apos;t activated a vehicle tag yet. Use the <strong className="text-[#2C1A12] font-semibold">Scan QR Sticker</strong> button above to link your windshield tag or valet card, or click <strong className="text-[#2C1A12] font-semibold">Buy Tags</strong> to order new stickers.
+              </p>
             </div>
           ) : (
             <div className="space-y-6">
