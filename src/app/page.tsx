@@ -2,24 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { ShieldCheck, User, Mail, Lock, PhoneCall, ChevronDown, Car, AlertTriangle, ArrowRight, LogOut, CheckCircle2, BellOff, Camera, Sparkles, ShoppingBag } from 'lucide-react';
+import { Mail, Lock, ChevronDown, Car, AlertTriangle, ArrowRight, LogOut, CheckCircle2, BellOff, ShoppingBag, QrCode } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { QRScannerModal } from '@/components/QRScannerModal';
-import { ProductPricingCards } from '@/components/ProductPricingCards';
 
 export default function LandingPage() {
   const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [showScanner, setShowScanner] = useState<boolean>(false);
-  const [verifyingSticker, setVerifyingSticker] = useState<boolean>(false);
-
-  // Registration Form States
-  const [fullName, setFullName] = useState<string>('');
-  const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [submittingAuth, setSubmittingAuth] = useState<boolean>(false);
@@ -32,33 +23,6 @@ export default function LandingPage() {
       setLoading(false);
     });
   }, []);
-
-  // Handle Scanned Sticker for Registration
-  const handleScanSticker = async (scannedId: string) => {
-    setShowScanner(false);
-    try {
-      setVerifyingSticker(true);
-      setMessage(null);
-
-      const res = await fetch(`/api/cars/${scannedId}/public`);
-      if (!res.ok) throw new Error('Could not check vehicle sticker');
-      const data = await res.json();
-
-      if (data.is_activated) {
-        setMessage({
-          type: 'error',
-          text: '⚠️ This vehicle sticker has already been claimed and registered! Please scan a new, unassigned sticker.'
-        });
-      } else {
-        // Unlinked sticker: redirect to register and activate this vehicle!
-        router.push(`/c/${scannedId}`);
-      }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Failed to verify sticker' });
-    } finally {
-      setVerifyingSticker(false);
-    }
-  };
 
   // Handle Sign In Submit
   const handleSignIn = async (e: React.FormEvent) => {
@@ -102,124 +66,145 @@ export default function LandingPage() {
     }
   };
 
-  const scrollToHero2 = () => {
-    const hero2Section = document.getElementById('hero-section-2');
-    if (hero2Section) {
-      hero2Section.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   return (
     <main className="min-h-screen bg-[#F8F5EE] text-[#2C1A12] selection:bg-[#D4A254] selection:text-[#160f0b]">
       {/* Top Header */}
-      <header className="w-full max-w-5xl mx-auto px-4 py-6 flex items-center justify-between border-b border-[#E4DCD0]/60">
+      <header className="w-full max-w-5xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between border-b border-[#E4DCD0]/60">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-2xl bg-[#4A2E20] flex items-center justify-center text-white text-lg font-bold shadow-md">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#4A2E20] flex items-center justify-center text-white text-base sm:text-lg font-bold shadow-md">
             🚗
           </div>
           <div>
-            <span className="text-lg font-extrabold tracking-wider font-mono text-[#2C1A12] uppercase">
+            <span className="text-base sm:text-lg font-extrabold tracking-wider font-mono text-[#2C1A12] uppercase">
               CALL N GO
             </span>
-            <span className="block text-[10px] uppercase tracking-widest text-[#B5822B] font-bold">
+            <span className="block text-[9px] sm:text-[10px] uppercase tracking-widest text-[#B5822B] font-bold">
               Private Vehicle QR Calling
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })}
-            className="px-3 py-2 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+          <Link
+            href="/scan"
+            className="px-3 py-1.5 sm:py-2 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-[#B5822B]" />
-            Buy Tags
-          </button>
+            <QrCode className="w-3.5 h-3.5 text-[#B5822B]" />
+            <span>Scan QR</span>
+          </Link>
 
           {user ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Link
                 href="/profile"
-                className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                className="px-3.5 py-1.5 sm:py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs font-bold transition flex items-center gap-1 shadow-sm"
               >
-                Go to Profile →
+                Profile →
               </Link>
               <button
                 onClick={handleLogOut}
-                className="px-3 py-2 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A3B32] text-xs font-semibold border border-[#E4DCD0] transition flex items-center gap-1"
+                className="p-1.5 sm:p-2 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A3B32] text-xs font-semibold border border-[#E4DCD0] transition"
+                title="Log Out"
               >
                 <LogOut className="w-3.5 h-3.5 text-red-600" />
-                Log Out
               </button>
             </div>
           ) : (
             <button
               onClick={scrollToAuth}
-              className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs font-bold transition shadow-sm"
+              className="px-3.5 py-1.5 sm:py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs font-bold transition shadow-sm"
             >
-              Sign In / Scan QR
+              Sign In
             </button>
           )}
         </div>
       </header>
 
-      {/* HERO SECTION 1: ACCIDENT EMERGENCY */}
-      <section className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center max-w-4xl mx-auto relative">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-100 border border-red-200 text-red-800 text-xs font-bold uppercase tracking-wider mb-6 animate-pulse">
-          <AlertTriangle className="w-4 h-4 text-red-600" />
-          Emergency Response Ready
-        </div>
-
-        <h1 className="text-4xl sm:text-6xl font-extrabold font-serif text-[#2C1A12] tracking-tight leading-[1.15] mb-6">
-          🚨 If accident happens
-        </h1>
-
-        <p className="text-lg sm:text-2xl font-serif text-[#6E5A4C] max-w-2xl mb-12 leading-relaxed">
-          "Keep your loved ones informed. Your emergency contact is one scan away."
-        </p>
-
-        {/* Scroll Down Indicator to Hero 2 */}
-        <button
-          onClick={scrollToHero2}
-          className="flex flex-col items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#B5822B] hover:text-[#4A2E20] transition group cursor-pointer"
+      {/* DOWNSIDE BUY TAGS AREA (Directly below header) */}
+      <div className="w-full max-w-4xl mx-auto px-4 pt-3.5 pb-1 flex justify-center">
+        <Link
+          href="/buy"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] text-xs font-bold transition shadow-sm group"
         >
-          <span>Scroll Down For Parking Protection</span>
-          <ChevronDown className="w-5 h-5 animate-bounce text-[#B5822B] group-hover:text-[#4A2E20]" />
-        </button>
-      </section>
+          <ShoppingBag className="w-4 h-4 text-[#B5822B] group-hover:scale-110 transition-transform" />
+          <span>Buy Tags</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FAF6EE] text-[#B5822B] font-semibold border border-[#E4DCD0]">
+            Stickers & Cards
+          </span>
+          <ArrowRight className="w-3.5 h-3.5 text-[#B5822B]" />
+        </Link>
+      </div>
 
-      {/* HERO SECTION 2: PARKING CONTACT */}
-      <section id="hero-section-2" className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center max-w-4xl mx-auto border-t border-[#E4DCD0]/60 relative">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#FAF6EE] border border-[#E4DCD0] text-[#4A2E20] text-xs font-bold uppercase tracking-wider mb-6">
-          <Car className="w-4 h-4 text-[#B5822B]" />
-          Smart Parking Assistant
+      {/* COMBINED HERO: BOTH SECTIONS VISIBLE TOGETHER VERTICALLY */}
+      <section className="w-full max-w-4xl mx-auto px-4 py-3 sm:py-6 flex flex-col justify-center min-h-[calc(100vh-120px)]">
+        <div className="space-y-3 sm:space-y-4">
+          
+          {/* SECTION 1: IF ACCIDENT HAPPENS */}
+          <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/70 border border-[#E4DCD0] shadow-sm text-center">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-100 border border-red-200 text-red-800 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-2">
+              <AlertTriangle className="w-3 h-3 text-red-600" />
+              Emergency Response Ready
+            </div>
+
+            <h1 className="text-2xl sm:text-4xl font-extrabold font-serif text-[#2C1A12] tracking-tight leading-tight mb-1 sm:mb-2">
+              🚨 If accident happens
+            </h1>
+
+            <p className="text-xs sm:text-base font-serif text-[#6E5A4C] max-w-xl mx-auto leading-relaxed">
+              &ldquo;Keep your loved ones informed. Your emergency contact is one scan away.&rdquo;
+            </p>
+          </div>
+
+          {/* SECTION 2: WHEN YOU PARK */}
+          <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/70 border border-[#E4DCD0] shadow-sm text-center">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FAF6EE] border border-[#E4DCD0] text-[#4A2E20] text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-2">
+              <Car className="w-3 h-3 text-[#B5822B]" />
+              Smart Parking Assistant
+            </div>
+
+            <h2 className="text-2xl sm:text-4xl font-extrabold font-serif text-[#2C1A12] tracking-tight leading-tight mb-1 sm:mb-2">
+              🚗 When You Park
+            </h2>
+
+            <p className="text-xs sm:text-base font-serif text-[#6E5A4C] max-w-xl mx-auto leading-relaxed">
+              &ldquo;Park anywhere. Stay reachable. Get notified when someone needs you — without sharing your number.&rdquo;
+            </p>
+          </div>
+
+          {/* QUICK ACTION BUTTONS */}
+          <div className="pt-1 flex items-center justify-center gap-3 flex-wrap">
+            <Link
+              href="/scan"
+              className="px-5 py-2.5 rounded-xl sm:rounded-2xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs sm:text-sm font-bold transition shadow-md flex items-center gap-1.5"
+            >
+              <QrCode className="w-4 h-4 text-[#D4A254]" />
+              Scan QR Sticker
+            </Link>
+            <Link
+              href="/buy"
+              className="px-5 py-2.5 rounded-xl sm:rounded-2xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] text-xs sm:text-sm font-bold transition shadow-sm flex items-center gap-1.5"
+            >
+              <ShoppingBag className="w-4 h-4 text-[#B5822B]" />
+              Buy Our Card
+            </Link>
+          </div>
+
+          {/* SCROLL DOWN TO LOGIN */}
+          <div className="pt-1 text-center">
+            <button
+              onClick={scrollToAuth}
+              className="inline-flex flex-col items-center gap-1 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#B5822B] hover:text-[#4A2E20] transition group cursor-pointer"
+            >
+              <span>Scroll Down To Sign In</span>
+              <ChevronDown className="w-4 h-4 animate-bounce text-[#B5822B] group-hover:text-[#4A2E20]" />
+            </button>
+          </div>
+
         </div>
-
-        <h2 className="text-4xl sm:text-6xl font-extrabold font-serif text-[#2C1A12] tracking-tight leading-[1.15] mb-6">
-          🚗 When You Park
-        </h2>
-
-        <p className="text-lg sm:text-2xl font-serif text-[#6E5A4C] max-w-2xl mb-12 leading-relaxed">
-          "Park anywhere. Stay reachable. Get notified when someone needs you — without sharing your number."
-        </p>
-
-        {/* Scroll Down Indicator to Pricing Section */}
-        <button
-          onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })}
-          className="flex flex-col items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#B5822B] hover:text-[#4A2E20] transition group cursor-pointer"
-        >
-          <span>Scroll Down For Products & Pricing</span>
-          <ChevronDown className="w-5 h-5 animate-bounce text-[#B5822B] group-hover:text-[#4A2E20]" />
-        </button>
       </section>
 
-      {/* SECTION 3: PRODUCTS & PRICING */}
-      <section id="pricing-section" className="py-20 px-4 bg-[#FAF6EE]/50 border-t border-[#E4DCD0]/60">
-        <ProductPricingCards />
-      </section>
-
-      {/* BOTTOM AUTH SECTION: LOGIN OR REGISTER ONLY */}
-      <section id="auth-section" className="py-16 px-4 bg-[#FAF6EE] border-t border-[#E4DCD0] flex flex-col items-center justify-center min-h-[60vh]">
+      {/* BOTTOM AUTH SECTION: LOGIN FORM */}
+      <section id="auth-section" className="py-14 sm:py-20 px-4 bg-[#FAF6EE] border-t border-[#E4DCD0] flex flex-col items-center justify-center min-h-[60vh]">
         <div className="w-full max-w-md bg-white border border-[#E4DCD0] rounded-3xl p-6 sm:p-8 shadow-xl">
           
           {user ? (
@@ -255,12 +240,10 @@ export default function LandingPage() {
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-[#2C1A12] font-serif tracking-tight">
-                  {authMode === 'signup' ? 'Create Your Account' : 'Welcome Back'}
+                  Sign In to CallNGo
                 </h3>
                 <p className="text-xs text-[#7A6657] mt-1">
-                  {authMode === 'signup'
-                    ? 'Register your account to manage your profile and vehicle QR cards.'
-                    : 'Sign in to access your vehicles and call alert settings.'}
+                  Access your registered vehicles, emergency contacts, and privacy settings.
                 </p>
               </div>
 
@@ -282,114 +265,74 @@ export default function LandingPage() {
                 </div>
               )}
 
-              {/* Tab Selector: Register or Login */}
-              <div className="flex items-center p-1 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0]">
-                <button
-                  onClick={() => { setAuthMode('signup'); setMessage(null); }}
-                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition ${
-                    authMode === 'signup'
-                      ? 'bg-[#4A2E20] text-white shadow-sm font-bold'
-                      : 'text-[#7A6657] hover:text-[#2C1A12]'
-                  }`}
-                >
-                  Register
-                </button>
-                <button
-                  onClick={() => { setAuthMode('signin'); setMessage(null); }}
-                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition ${
-                    authMode === 'signin'
-                      ? 'bg-[#4A2E20] text-white shadow-sm font-bold'
-                      : 'text-[#7A6657] hover:text-[#2C1A12]'
-                  }`}
-                >
-                  Login
-                </button>
-              </div>
-
-              {/* REGISTER VIA STICKER SCAN */}
-              {authMode === 'signup' ? (
-                <div className="space-y-4 py-4 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#B5822B] flex items-center justify-center text-3xl mx-auto shadow-inner">
-                    📷
+              {/* LOGIN FORM */}
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Email Address *</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="john@example.com"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                    />
                   </div>
-
-                  <div>
-                    <h4 className="font-bold text-sm text-[#2C1A12]">Scan Physical Sticker to Register</h4>
-                    <p className="text-xs text-[#7A6657] mt-1 leading-relaxed max-w-xs mx-auto">
-                      Registration is strictly tied to your CallNGo QR code sticker. Scan your sticker to verify it is unassigned and create your vehicle account.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowScanner(true)}
-                    disabled={verifyingSticker}
-                    className="w-full py-3.5 rounded-2xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-sm transition shadow-lg shadow-[#4A2E20]/20 flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    <Camera className="w-4 h-4 text-[#D4A254]" />
-                    {verifyingSticker ? 'Verifying Sticker...' : 'Scan QR Sticker to Register'}
-                  </button>
-
-                  <p className="text-[11px] text-gray-500">
-                    Already registered? Switch to <strong className="cursor-pointer text-[#4A2E20] underline" onClick={() => setAuthMode('signin')}>Login</strong>.
-                  </p>
                 </div>
-              ) : (
-                /* LOGIN FORM */
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Email Address *</label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
-                      <input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="john@example.com"
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                      />
-                    </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Password *</label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
-                      <input
-                        type="password"
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                      />
-                    </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Password *</label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                    <input
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                    />
                   </div>
+                </div>
 
-                  <button
-                    type="submit"
-                    disabled={submittingAuth}
-                    className="w-full py-3.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-sm transition shadow-md disabled:opacity-50 mt-2"
+                <button
+                  type="submit"
+                  disabled={submittingAuth}
+                  className="w-full py-3.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-sm transition shadow-md disabled:opacity-50 mt-2"
+                >
+                  {submittingAuth ? 'Signing In...' : 'Sign In'}
+                </button>
+              </form>
+
+              {/* ACTION CALLOUTS FOR QR SCAN / BUY */}
+              <div className="pt-4 border-t border-[#E4DCD0] space-y-3">
+                <div className="p-3.5 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] flex items-center justify-between gap-2">
+                  <div className="text-left">
+                    <div className="text-xs font-bold text-[#2C1A12]">Have a new QR sticker?</div>
+                    <div className="text-[11px] text-[#7A6657]">Scan it on our scan page to register.</div>
+                  </div>
+                  <Link
+                    href="/scan"
+                    className="px-3 py-1.5 rounded-xl bg-[#4A2E20] text-white text-xs font-bold hover:bg-[#3B2418] transition shrink-0"
                   >
-                    {submittingAuth ? 'Signing In...' : 'Sign In'}
-                  </button>
-                </form>
-              )}
+                    Scan QR →
+                  </Link>
+                </div>
+
+                <div className="text-center text-xs text-[#7A6657]">
+                  Don&apos;t have a sticker or valet card yet?{' '}
+                  <Link href="/buy" className="text-[#B5822B] font-bold underline hover:text-[#4A2E20]">
+                    Buy Our Card
+                  </Link>
+                </div>
+              </div>
             </div>
           )}
 
         </div>
       </section>
-
-      {/* QR SCANNER MODAL */}
-      <QRScannerModal
-        isOpen={showScanner}
-        onClose={() => setShowScanner(false)}
-        onScan={handleScanSticker}
-        title="Scan Sticker to Register"
-        subtitle="Point camera at your CallNGo sticker QR code to activate your account"
-      />
     </main>
   );
 }
