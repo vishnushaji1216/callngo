@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWebRTCCall } from '@/hooks/useWebRTCCall';
-import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
 import { QRScannerModal } from '@/components/QRScannerModal';
 import { ProductShopModal } from '@/components/ProductShopModal';
 
@@ -573,8 +572,6 @@ export default function ProfilePage() {
           </div>
         </header>
 
-        <IOSInstallPrompt />
-
         {/* System Messages */}
         {message && (
           <div
@@ -879,12 +876,23 @@ export default function ProfilePage() {
 
           {/* LIST OF VEHICLES */}
           {vehicles.length === 0 ? (
-            <div className="p-8 text-center rounded-3xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-2">
+            <div className="p-8 text-center rounded-3xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-3">
               <span className="text-4xl inline-block">🚗</span>
               <h3 className="text-lg font-bold text-[#2C1A12] font-serif">You haven&apos;t linked any vehicle card yet</h3>
               <p className="text-xs text-[#7A6657] max-w-md mx-auto leading-relaxed">
-                You are registered on CallNGo, but you haven&apos;t activated a vehicle tag yet. Use the <strong className="text-[#2C1A12] font-semibold">Scan QR Sticker</strong> button above to link your windshield tag or valet card, or click <strong className="text-[#2C1A12] font-semibold">Buy Tags</strong> to order new stickers.
+                You are registered on CallNGo, but you haven&apos;t activated a vehicle tag yet. If you have a physical sticker, use <strong className="text-[#2C1A12] font-semibold">Scan QR Sticker</strong> above. If you need a sticker or valet card, order below!
               </p>
+
+              <div className="pt-2 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBuyModal(true)}
+                  className="px-5 py-2.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition shadow-md flex items-center gap-2"
+                >
+                  <ShoppingBag className="w-4 h-4 text-[#D4A254]" />
+                  <span>Buy Stickers & Valet Cards</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-6">
