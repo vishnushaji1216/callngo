@@ -109,13 +109,36 @@ export async function POST(req: NextRequest) {
     // 5. Check if live Edesy API Key is configured
     const apiKey = process.env.EDESY_API_KEY;
 
+    // Helper to log call details and caller IP into database audit trail
+    const recordCallLog = async (callSid: string, status: string, isDemo = false) => {
+      try {
+        await supabase.from('call_logs').insert({
+          car_id: car.id,
+          owner_id: car.owner_id,
+          caller_phone: cleanCallerPhone,
+          caller_ip: clientIp,
+          reason: reason || 'Parking notification',
+          call_sid: callSid,
+          status: isDemo ? 'demo' : status,
+          created_at: new Date().toISOString()
+        });
+        console.log(`[Audit Log] Recorded caller IP ${clientIp} for car ${car.id}`);
+      } catch (logErr) {
+        // Non-blocking if table not migrated yet
+        console.warn('[Audit Log] Notice: could not record into call_logs table:', logErr);
+      }
+    };
+
     if (!apiKey || apiKey === 'vp_YOUR_API_KEY_HERE') {
       // Demo mode preview response when API key is pending
+      const demoSid = `demo-${Date.now()}`;
       console.warn('[Edesy Masked Call] EDESY_API_KEY not configured. Simulating masked call.');
+      await recordCallLog(demoSid, 'demo', true);
+
       return NextResponse.json({
         success: true,
         demo: true,
-        call_sid: `demo-${Date.now()}`,
+        call_sid: demoSid,
         masked_number: '+91 80713 87146',
         status: 'initiated',
         party_a: cleanCallerPhone,
@@ -131,6 +154,9 @@ export async function POST(req: NextRequest) {
       partyB: cleanOwnerPhone,
       maxDurationSec: 59 // Automatically hang up at 59 seconds
     });
+
+    // Record caller IP and call status in audit database
+    await recordCallLog(edesyResult.call_sid, edesyResult.status || 'initiated');
 
     return NextResponse.json({
       success: true,
