@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Mail, Lock, ChevronDown, Car, AlertTriangle, ArrowRight, LogOut, CheckCircle2, BellOff, ShoppingBag, QrCode, ShieldCheck, PhoneCall, HeartPulse, Sparkles } from 'lucide-react';
+import { Mail, Lock, ChevronDown, User, Phone, ArrowRight, LogOut, CheckCircle2, BellOff, ShoppingBag, QrCode } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -10,8 +10,14 @@ export default function LandingPage() {
   const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
+  const [userName, setUserName] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
-  const [email, setEmail] = useState<string>('');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+
+  // Sign In / Sign Up Form States
+  const [fullName, setFullName] = useState<string>('');
+  const [phoneNum, setPhoneNum] = useState<string>('');
+  const [loginIdentifier, setLoginIdentifier] = useState<string>(''); // Email or Phone
   const [password, setPassword] = useState<string>('');
   const [submittingAuth, setSubmittingAuth] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -20,28 +26,102 @@ export default function LandingPage() {
     supabase.auth.getUser().then(({ data }) => {
       const currentUser = data.user;
       setUser(currentUser);
+      if (currentUser) {
+        supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', currentUser.id)
+          .maybeSingle()
+          .then(({ data: prof }) => {
+            if (prof?.full_name) {
+              setUserName(prof.full_name);
+            } else if (currentUser.user_metadata?.full_name) {
+              setUserName(currentUser.user_metadata.full_name);
+            }
+          });
+      }
       setLoading(false);
     });
   }, []);
 
-  // Handle Sign In Submit
+  // Handle Registration
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmittingAuth(true);
+      setMessage(null);
+
+      if (!fullName.trim()) {
+        throw new Error('Please enter your full name');
+      }
+
+      const cleanPhone = phoneNum.replace(/[^0-9]/g, '');
+      if (cleanPhone.length < 10) {
+        throw new Error('Please enter a valid 10-digit mobile phone number');
+      }
+
+      if (!password || password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+
+      const internalEmail = `${cleanPhone}@callngo.in`;
+
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: internalEmail,
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            phone_number: cleanPhone
+          }
+        }
+      });
+
+      if (authError || !authData.user) {
+        throw new Error(authError?.message || 'Registration failed');
+      }
+
+      // Upsert profile record with name & phone
+      await supabase.from('profiles').upsert({
+        id: authData.user.id,
+        full_name: fullName.trim(),
+        phone_number: cleanPhone
+      });
+
+      setUserName(fullName.trim());
+      setUser(authData.user);
+      router.push('/profile');
+    } catch (err: any) {
+      console.error('Sign up error:', err);
+      setMessage({ type: 'error', text: err.message || 'Registration failed' });
+      setSubmittingAuth(false);
+    }
+  };
+
+  // Handle Sign In Submit (Supports Phone Number or Email)
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setSubmittingAuth(true);
       setMessage(null);
 
-      if (!email || !password) {
-        throw new Error('Email and password are required');
+      const trimmedIdentifier = loginIdentifier.trim();
+      if (!trimmedIdentifier || !password) {
+        throw new Error('Please enter your Phone/Email and password');
       }
 
+      // If user typed a phone number, convert to the internal email format
+      const emailToLogin = trimmedIdentifier.includes('@')
+        ? trimmedIdentifier
+        : `${trimmedIdentifier.replace(/[^0-9]/g, '')}@callngo.in`;
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: emailToLogin,
         password
       });
 
       if (authError || !authData.user) {
-        throw new Error(authError?.message || 'Login failed');
+        throw new Error(authError?.message || 'Invalid phone number/email or password');
       }
 
       // Redirect to Profile Page
@@ -56,6 +136,7 @@ export default function LandingPage() {
   const handleLogOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setUserName('');
     setMessage({ type: 'success', text: 'Logged out.' });
   };
 
@@ -71,9 +152,11 @@ export default function LandingPage() {
       {/* Top Header */}
       <header className="w-full max-w-4xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between border-b border-[#E4DCD0]/60">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#4A2E20] flex items-center justify-center text-white text-base sm:text-lg font-bold shadow-md">
-            🚗
-          </div>
+          <img
+            src="/logo.png"
+            alt="CallNGo Logo"
+            className="w-10 h-10 rounded-xl object-contain shadow-sm"
+          />
           <div>
             <span className="text-base sm:text-lg font-extrabold tracking-wider font-mono text-[#2C1A12] uppercase">
               CALL N GO
@@ -150,8 +233,7 @@ export default function LandingPage() {
           
           {/* CARD 1: IF ACCIDENT HAPPENS */}
           <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-[#E4DCD0] shadow-sm text-center relative overflow-hidden">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-100 border border-red-200 text-red-800 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-2">
-              <AlertTriangle className="w-3 h-3 text-red-600" />
+            <div className="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-[#B5822B] mb-2 font-mono">
               Emergency Response Ready
             </div>
 
@@ -163,22 +245,15 @@ export default function LandingPage() {
               &ldquo;Keep your loved ones informed. Your emergency contact is one scan away.&rdquo;
             </p>
 
-            <div className="flex items-center justify-center gap-2 flex-wrap text-[11px] text-[#4A3B32]">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0]">
-                <HeartPulse className="w-3 h-3 text-red-600" />
-                Emergency Medical Card
-              </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0]">
-                <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                Instant Family SOS Call
-              </span>
+            <div className="flex items-center justify-center gap-3 text-[11px] text-[#7A6657] font-medium">
+              <span>• Emergency Medical Card</span>
+              <span>• Instant Family SOS Call</span>
             </div>
           </div>
 
           {/* CARD 2: WHEN YOU PARK */}
           <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-[#E4DCD0] shadow-sm text-center relative overflow-hidden">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FAF6EE] border border-[#E4DCD0] text-[#4A2E20] text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-2">
-              <Car className="w-3 h-3 text-[#B5822B]" />
+            <div className="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-[#B5822B] mb-2 font-mono">
               Smart Parking Assistant
             </div>
 
@@ -190,15 +265,9 @@ export default function LandingPage() {
               &ldquo;Park anywhere. Stay reachable. Get notified when someone needs you — without sharing your number.&rdquo;
             </p>
 
-            <div className="flex items-center justify-center gap-2 flex-wrap text-[11px] text-[#4A3B32]">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0]">
-                <PhoneCall className="w-3 h-3 text-[#B5822B]" />
-                Masked Private Calling
-              </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0]">
-                <ShieldCheck className="w-3 h-3 text-[#4A2E20]" />
-                Zero Spam & Number Masked
-              </span>
+            <div className="flex items-center justify-center gap-3 text-[11px] text-[#7A6657] font-medium">
+              <span>• Masked Private Calling</span>
+              <span>• Zero Spam & Number Masked</span>
             </div>
           </div>
 
@@ -226,7 +295,7 @@ export default function LandingPage() {
               onClick={scrollToAuth}
               className="inline-flex items-center gap-1 text-[11px] font-bold text-[#B5822B] hover:text-[#4A2E20] transition group cursor-pointer"
             >
-              <span>Existing User? Sign In Below</span>
+              <span>{user ? 'Account Settings Below' : 'Sign In or Register Below'}</span>
               <ChevronDown className="w-3.5 h-3.5 animate-bounce text-[#B5822B] group-hover:text-[#4A2E20]" />
             </button>
           </div>
@@ -234,7 +303,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* AUTH SECTION: LOGIN FORM */}
+      {/* AUTH SECTION: LOGIN & REGISTRATION */}
       <section id="auth-section" className="py-8 sm:py-12 px-4 bg-[#FAF6EE] border-t border-[#E4DCD0] flex flex-col items-center justify-center">
         <div className="w-full max-w-md bg-white border border-[#E4DCD0] rounded-3xl p-5 sm:p-7 shadow-lg">
           
@@ -247,7 +316,7 @@ export default function LandingPage() {
                 You are logged in
               </h3>
               <p className="text-xs text-[#7A6657]">
-                Logged in as <strong className="text-[#2C1A12]">{user.email}</strong>
+                Logged in as <strong className="text-[#2C1A12]">{userName || 'User'}</strong>
               </p>
 
               <div className="pt-2 flex flex-col gap-2.5">
@@ -268,14 +337,42 @@ export default function LandingPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="text-center">
                 <h3 className="text-xl sm:text-2xl font-bold text-[#2C1A12] font-serif tracking-tight">
-                  Sign In to CallNGo
+                  {authMode === 'signup' ? 'Create Your Account' : 'Sign In to CallNGo'}
                 </h3>
                 <p className="text-xs text-[#7A6657] mt-1">
-                  Access your registered vehicles, emergency contacts, and privacy settings.
+                  {authMode === 'signup'
+                    ? 'Enter your name, phone number, and password to register.'
+                    : 'Access your registered vehicles, emergency contacts, and privacy settings.'}
                 </p>
+              </div>
+
+              {/* Mode Switch Tabs: Register vs Sign In */}
+              <div className="flex items-center p-1 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0]">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('signin'); setMessage(null); }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
+                    authMode === 'signin'
+                      ? 'bg-[#4A2E20] text-white shadow-sm'
+                      : 'text-[#7A6657] hover:text-[#2C1A12]'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('signup'); setMessage(null); }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
+                    authMode === 'signup'
+                      ? 'bg-[#4A2E20] text-white shadow-sm'
+                      : 'text-[#7A6657] hover:text-[#2C1A12]'
+                  }`}
+                >
+                  Register
+                </button>
               </div>
 
               {/* System Messages */}
@@ -296,53 +393,111 @@ export default function LandingPage() {
                 </div>
               )}
 
-              {/* LOGIN FORM */}
-              <form onSubmit={handleSignIn} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Email Address *</label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="john@example.com"
-                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
-                    />
+              {/* REGISTRATION FORM */}
+              {authMode === 'signup' ? (
+                <form onSubmit={handleSignUp} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Full Name *</label>
+                    <div className="relative">
+                      <User className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        required
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="Vishnu Shaji"
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Password *</label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
-                    />
+                  <div>
+                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Phone Number *</label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                      <input
+                        type="tel"
+                        required
+                        value={phoneNum}
+                        onChange={(e) => setPhoneNum(e.target.value)}
+                        placeholder="9876543210"
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={submittingAuth}
-                  className="w-full py-3 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs sm:text-sm transition shadow-md disabled:opacity-50 mt-1"
-                >
-                  {submittingAuth ? 'Signing In...' : 'Sign In'}
-                </button>
-              </form>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Password *</label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submittingAuth}
+                    className="w-full py-3 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs sm:text-sm transition shadow-md disabled:opacity-50 mt-1"
+                  >
+                    {submittingAuth ? 'Creating Account...' : 'Register Account'}
+                  </button>
+                </form>
+              ) : (
+                /* LOGIN FORM */
+                <form onSubmit={handleSignIn} className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Phone Number or Email *</label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        required
+                        value={loginIdentifier}
+                        onChange={(e) => setLoginIdentifier(e.target.value)}
+                        placeholder="9876543210 or name@example.com"
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Password *</label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submittingAuth}
+                    className="w-full py-3 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs sm:text-sm transition shadow-md disabled:opacity-50 mt-1"
+                  >
+                    {submittingAuth ? 'Signing In...' : 'Sign In'}
+                  </button>
+                </form>
+              )}
 
               {/* ACTION CALLOUTS FOR QR SCAN / BUY */}
               <div className="pt-3 border-t border-[#E4DCD0] space-y-2.5">
                 <div className="p-3 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] flex items-center justify-between gap-2">
                   <div className="text-left">
-                    <div className="text-xs font-bold text-[#2C1A12]">Have a new QR sticker?</div>
-                    <div className="text-[11px] text-[#7A6657]">Scan it on our scan page to register.</div>
+                    <div className="text-xs font-bold text-[#2C1A12]">Have a physical sticker?</div>
+                    <div className="text-[11px] text-[#7A6657]">Scan it to activate or link.</div>
                   </div>
                   <Link
                     href="/scan"
