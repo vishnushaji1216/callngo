@@ -37,6 +37,7 @@ export interface Vehicle {
   nickname: string;
   model_number?: string;
   plate_number?: string;
+  activated_at?: string | null;
 }
 
 export default function ProfilePage() {
@@ -74,6 +75,7 @@ export default function ProfilePage() {
   const [claimVehModel, setClaimVehModel] = useState<string>('');
   const [claimVehPlate, setClaimVehPlate] = useState<string>('');
   const [claimingSticker, setClaimingSticker] = useState<boolean>(false);
+  const [linkingVehicle, setLinkingVehicle] = useState<any | null>(null);
 
   // Push Subscription State
   const [pushEnabled, setPushEnabled] = useState<boolean>(false);
@@ -124,7 +126,7 @@ export default function ProfilePage() {
       // 2. Load Vehicles
       const { data: vehData } = await supabase
         .from('cars')
-        .select('id, nickname, model_number, plate_number')
+        .select('id, nickname, model_number, plate_number, activated_at')
         .eq('owner_id', userId)
         .order('created_at', { ascending: false });
 
@@ -304,6 +306,32 @@ export default function ProfilePage() {
           type: 'error',
           text: '⚠️ This vehicle sticker has already been claimed and registered! Please scan an unassigned sticker.'
         });
+        setLinkingVehicle(null);
+        return;
+      }
+
+      // If linking a specific inactive vehicle created via "Add New Vehicle"
+      if (linkingVehicle && user) {
+        const claimRes = await fetch(`/api/cars/${scannedId}/claim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nickname: linkingVehicle.nickname,
+            model_number: linkingVehicle.model_number || '',
+            plate_number: linkingVehicle.plate_number,
+            userId: user.id,
+            pendingVehicleId: linkingVehicle.id
+          })
+        });
+        const claimData = await claimRes.json();
+        if (!claimRes.ok) throw new Error(claimData.error || 'Failed to link sticker');
+
+        setLinkingVehicle(null);
+        setMessage({
+          type: 'success',
+          text: `✅ Physical QR Sticker successfully linked! "${linkingVehicle.nickname}" is now active and protected.`
+        });
+        await loadUserData(user.id);
       } else {
         setClaimTagId(scannedId);
         setShowClaimSticker(true);
@@ -314,6 +342,7 @@ export default function ProfilePage() {
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to verify sticker' });
+      setLinkingVehicle(null);
     }
   };
 
@@ -543,13 +572,15 @@ export default function ProfilePage() {
         {/* Header Navigation */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white border border-[#E4DCD0] p-6 rounded-3xl shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-[#4A2E20] flex items-center justify-center text-white text-xl font-bold shadow-md">
-              🚗
-            </div>
+            <img
+              src="/logo.png"
+              alt="CallNGo Logo"
+              className="w-12 h-12 rounded-2xl object-contain shadow-md"
+            />
             <div>
               <h1 className="text-xl font-bold text-[#2C1A12] tracking-tight font-serif">Owner Dashboard & Profile</h1>
               <p className="text-xs text-[#6E5A4C]">
-                Logged in as <strong className="text-[#2C1A12]">{user?.email}</strong>
+                Logged in as <strong className="text-[#2C1A12]">{profile?.full_name || user?.user_metadata?.full_name || 'User'}</strong>
               </p>
             </div>
           </div>
@@ -904,11 +935,24 @@ export default function ProfilePage() {
                     {/* Vehicle Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E4DCD0] pb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-[#4A2E20] text-white font-bold flex items-center justify-center text-lg">
-                          🚗
-                        </div>
+                        <img
+                          src="/logo.png"
+                          alt="CallNGo Logo"
+                          className="w-10 h-10 rounded-xl object-contain shadow-sm"
+                        />
                         <div>
-                          <h3 className="text-lg font-bold text-[#2C1A12] font-serif">{v.nickname}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-[#2C1A12] font-serif">{v.nickname}</h3>
+                            {v.activated_at ? (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider border border-emerald-200">
+                                🟢 Active & Linked
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold uppercase tracking-wider border border-amber-300">
+                                🔴 Inactive • QR Unlinked
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3 text-xs font-mono font-bold text-[#B5822B] mt-0.5">
                             <span>PLATE: {v.plate_number || 'N/A'}</span>
                             {v.model_number && <span className="text-[#7A6657]">| MODEL: {v.model_number}</span>}
@@ -917,14 +961,16 @@ export default function ProfilePage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleUnlinkVehicle(v.id, v.nickname)}
-                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200 transition flex items-center gap-1"
-                          title="Return sticker to unclaimed pool"
-                        >
-                          <Unlink className="w-3.5 h-3.5 text-amber-700" />
-                          Unlink Sticker
-                        </button>
+                        {v.activated_at && (
+                          <button
+                            onClick={() => handleUnlinkVehicle(v.id, v.nickname)}
+                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200 transition flex items-center gap-1"
+                            title="Return sticker to unclaimed pool"
+                          >
+                            <Unlink className="w-3.5 h-3.5 text-amber-700" />
+                            Unlink Sticker
+                          </button>
+                        )}
 
                         <button
                           onClick={() => {
@@ -951,31 +997,59 @@ export default function ProfilePage() {
                     </div>
 
                     {/* VEHICLE STATUS & CALLER LINK */}
-                    <div className="w-full p-4 rounded-2xl bg-white border border-[#E4DCD0] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase tracking-wider border border-emerald-200">
-                            ✓ Activated Sticker
-                          </span>
-                          <span className="text-[11px] text-[#7A6657] font-mono">
-                            ID: {v.id.substring(0, 13)}...
-                          </span>
+                    {v.activated_at ? (
+                      <div className="w-full p-4 rounded-2xl bg-white border border-[#E4DCD0] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase tracking-wider border border-emerald-200">
+                              ✓ Activated Physical Sticker
+                            </span>
+                            <span className="text-[11px] text-[#7A6657] font-mono">
+                              ID: {v.id.substring(0, 13)}...
+                            </span>
+                          </div>
+                          <p className="text-[#6E5A4C] mt-1 text-[11px]">
+                            Physical QR sticker linked to your emergency contact profile.
+                          </p>
                         </div>
-                        <p className="text-[#6E5A4C] mt-1 text-[11px]">
-                          Physical QR sticker linked to your emergency contact profile.
-                        </p>
+
+                        <Link
+                          href={`/c/${v.id}`}
+                          target="_blank"
+                          className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-[#D4A254]" />
+                          Open Live Caller Page
+                        </Link>
                       </div>
+                    ) : (
+                      <div className="w-full p-4 rounded-2xl bg-amber-50/80 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold uppercase tracking-wider border border-amber-300">
+                              🔴 Inactive • QR Sticker Required
+                            </span>
+                          </div>
+                          <p className="text-amber-900 mt-1 text-[11.5px] max-w-md leading-relaxed">
+                            Vehicle details are saved, but calling features are inactive. Scan your physical CallNGo sticker to link and make this vehicle active.
+                          </p>
+                        </div>
 
-                      <Link
-                        href={`/c/${v.id}`}
-                        target="_blank"
-                        className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 text-[#D4A254]" />
-                        Open Live Caller Page
-                      </Link>
-                    </div>
-
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLinkingVehicle(v);
+                              setShowQRScanner(true);
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-md"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-[#D4A254]" />
+                            <span>Scan QR to Activate</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

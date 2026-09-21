@@ -11,7 +11,7 @@ export async function POST(
       return NextResponse.json({ error: 'Sticker ID is required' }, { status: 400 });
     }
 
-    const { nickname, model_number, plate_number, userId } = await req.json();
+    const { nickname, model_number, plate_number, userId, pendingVehicleId } = await req.json();
 
     if (!nickname || !plate_number) {
       return NextResponse.json({ error: 'Vehicle Name and License Plate are required' }, { status: 400 });
@@ -36,6 +36,8 @@ export async function POST(
       .select('id, owner_id')
       .eq('id', carId)
       .maybeSingle();
+
+    let resultCar = null;
 
     if (existingCar) {
       // Check if already activated by someone else
@@ -63,8 +65,7 @@ export async function POST(
       if (updateError) {
         throw updateError;
       }
-
-      return NextResponse.json({ success: true, car: updatedCar }, { status: 200 });
+      resultCar = updatedCar;
     } else {
       // Create new car entry with this specific pre-printed carId
       const { data: newCar, error: insertError } = await supabase
@@ -83,9 +84,19 @@ export async function POST(
       if (insertError) {
         throw insertError;
       }
-
-      return NextResponse.json({ success: true, car: newCar }, { status: 200 });
+      resultCar = newCar;
     }
+
+    // If an inactive pending vehicle placeholder was being linked, remove the temporary placeholder record
+    if (pendingVehicleId && pendingVehicleId !== carId) {
+      await supabase
+        .from('cars')
+        .delete()
+        .eq('id', pendingVehicleId)
+        .eq('owner_id', currentUserId);
+    }
+
+    return NextResponse.json({ success: true, car: resultCar }, { status: 200 });
   } catch (err: any) {
     console.error('Error claiming vehicle sticker:', err);
     return NextResponse.json({ error: err.message || 'Server error claiming sticker' }, { status: 500 });

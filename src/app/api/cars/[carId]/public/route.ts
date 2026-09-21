@@ -16,12 +16,12 @@ export async function GET(
     // 1. Fetch car info
     const { data: car, error: carError } = await supabase
       .from('cars')
-      .select('id, owner_id, nickname, model_number, plate_number')
+      .select('id, owner_id, nickname, model_number, plate_number, activated_at')
       .eq('id', carId)
       .maybeSingle();
 
-    // If car record doesn't exist yet, it is an unassigned pre-printed sticker ID
-    if (!car || !car.owner_id) {
+    // If car record doesn't exist yet, has no owner, or has not been linked to a physical QR, it is inactive
+    if (!car || !car.owner_id || !car.activated_at) {
       return NextResponse.json({
         id: carId,
         is_activated: false
