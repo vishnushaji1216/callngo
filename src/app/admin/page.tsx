@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ShieldCheck, Lock, Mail, Plus, Printer, LogOut, Copy, Check, RefreshCw, Unlink, Sparkles, Car, CheckCircle2, AlertCircle, Eye, EyeOff, Wallet, ExternalLink, PhoneCall } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Plus, Printer, LogOut, Copy, Check, RefreshCw, Unlink, Sparkles, Car, CheckCircle2, AlertCircle, Eye, EyeOff, Wallet, ExternalLink, PhoneCall, ShieldAlert, Ban, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { QRStickerCard } from '@/components/QRStickerCard';
 
@@ -49,6 +49,12 @@ export default function AdminPage() {
   } | null>(null);
   const [edesyError, setEdesyError] = useState<string | null>(null);
 
+  // Call Logs & Anti-Spam IP Ban States
+  const [callLogs, setCallLogs] = useState<any[]>([]);
+  const [blockedIps, setBlockedIps] = useState<any[]>([]);
+  const [callsLoading, setCallsLoading] = useState<boolean>(false);
+  const [unblockingIp, setUnblockingIp] = useState<string | null>(null);
+
   useEffect(() => {
     setOrigin(window.location.origin);
     const sessionAuth = sessionStorage.getItem('callngo_admin_logged_in');
@@ -56,6 +62,7 @@ export default function AdminPage() {
       setIsAdminLoggedIn(true);
       fetchStickers();
       fetchEdesyData();
+      fetchCallLogsAndBlocks();
     } else {
       setLoading(false);
     }
@@ -75,6 +82,7 @@ export default function AdminPage() {
       sessionStorage.setItem('callngo_admin_logged_in', 'true');
       fetchStickers();
       fetchEdesyData();
+      fetchCallLogsAndBlocks();
     } else {
       setAuthError('Invalid admin email or password. (Hint: admin@gmail.com / 1234)');
     }
@@ -125,6 +133,43 @@ export default function AdminPage() {
       setEdesyError(err.message || 'Unable to connect to Edesy API');
     } finally {
       setEdesyLoading(false);
+    }
+  };
+
+  // Fetch all call audit logs and currently blocked IPs
+  const fetchCallLogsAndBlocks = async () => {
+    try {
+      setCallsLoading(true);
+      const res = await fetch(`/api/admin/calls?_t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok) {
+        setCallLogs(data.logs || []);
+        setBlockedIps(data.blockedIps || []);
+      }
+    } catch (err) {
+      console.warn('Error fetching admin calls:', err);
+    } finally {
+      setCallsLoading(false);
+    }
+  };
+
+  // Unblock a banned IP address
+  const handleUnblock = async (ip: string) => {
+    if (!confirm(`Are you sure you want to unblock IP ${ip}?`)) return;
+    try {
+      setUnblockingIp(ip);
+      const res = await fetch('/api/admin/calls/unblock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to unblock');
+      await fetchCallLogsAndBlocks();
+    } catch (err: any) {
+      alert(err.message || 'Error unblocking IP');
+    } finally {
+      setUnblockingIp(null);
     }
   };
 
@@ -767,6 +812,140 @@ export default function AdminPage() {
 
             </div>
           )}
+        </section>
+
+        {/* CALL ACTIVITY & ANTI-SPAM CENTER */}
+        <section className="no-print bg-white border border-[#E4DCD0] p-6 rounded-3xl space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E4DCD0] pb-4">
+            <div>
+              <h2 className="text-lg font-bold text-[#2C1A12] font-serif flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-red-600" />
+                <span>Call Activity & 30-Day Anti-Spam Control</span>
+              </h2>
+              <p className="text-xs text-[#7A6657] mt-0.5">
+                Audit caller IP addresses, track spam reports, and manage automatic 30-day IP blocks (4+ reports in 30 days).
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={fetchCallLogsAndBlocks}
+              disabled={callsLoading}
+              className="px-3.5 py-2 rounded-xl bg-[#FAF6EE] hover:bg-[#F2ECE1] border border-[#E4DCD0] text-[#4A2E20] text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${callsLoading ? 'animate-spin' : ''}`} />
+              <span>{callsLoading ? 'Refreshing...' : 'Refresh Logs'}</span>
+            </button>
+          </div>
+
+          {/* Sub-section 1: Active 30-Day Blocked IPs */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-red-700 flex items-center gap-1.5">
+              <Ban className="w-4 h-4 text-red-600" />
+              <span>Currently Blocked IP Addresses ({blockedIps.length})</span>
+            </h3>
+
+            {blockedIps.length === 0 ? (
+              <div className="p-4 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] text-xs text-[#7A6657]">
+                ✅ No IP addresses are currently blocked. IP addresses are automatically banned for 30 days when receiving 4 or more spam reports.
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-red-200 rounded-2xl">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-red-50 text-red-900 font-mono text-[10.5px] uppercase border-b border-red-200">
+                    <tr>
+                      <th className="p-3">Blocked IP</th>
+                      <th className="p-3">Spam Strikes</th>
+                      <th className="p-3">Reason</th>
+                      <th className="p-3">Banned Until</th>
+                      <th className="p-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-red-100 bg-white">
+                    {blockedIps.map((b) => (
+                      <tr key={b.ip} className="hover:bg-red-50/50">
+                        <td className="p-3 font-mono font-bold text-red-900">{b.ip}</td>
+                        <td className="p-3 font-mono font-bold text-red-700">{b.spam_count} Reports</td>
+                        <td className="p-3 text-[#7A6657]">{b.reason}</td>
+                        <td className="p-3 font-mono text-xs text-[#2C1A12]">
+                          {new Date(b.blocked_until).toLocaleDateString()} ({new Date(b.blocked_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                        </td>
+                        <td className="p-3 text-right">
+                          <button
+                            onClick={() => handleUnblock(b.ip)}
+                            disabled={unblockingIp === b.ip}
+                            className="px-3 py-1 rounded-lg bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-xs transition cursor-pointer"
+                          >
+                            {unblockingIp === b.ip ? 'Unblocking...' : 'Unblock IP'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Sub-section 2: Platform Call Audit Logs */}
+          <div className="space-y-3 pt-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#B5822B] flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-[#B5822B]" />
+              <span>Recent Caller Logs & IP Audit Trail ({callLogs.length})</span>
+            </h3>
+
+            {callLogs.length === 0 ? (
+              <div className="p-4 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] text-xs text-[#7A6657]">
+                No call records found yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-[#E4DCD0] rounded-2xl">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#FAF6EE] text-[#4A3B32] font-mono text-[10.5px] uppercase border-b border-[#E4DCD0]">
+                    <tr>
+                      <th className="p-3">Time</th>
+                      <th className="p-3">Vehicle</th>
+                      <th className="p-3">Reason</th>
+                      <th className="p-3">Caller IP</th>
+                      <th className="p-3">Caller Phone</th>
+                      <th className="p-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E4DCD0] bg-white">
+                    {callLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-[#FAF6EE]/50 transition">
+                        <td className="p-3 font-mono text-[11px] text-[#7A6657]">
+                          {new Date(log.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                        </td>
+                        <td className="p-3 font-semibold text-[#2C1A12]">
+                          <span>{log.car_nickname || 'Vehicle'}</span>
+                          {log.car_plate && (
+                            <span className="block text-[10px] font-mono text-[#B5822B]">{log.car_plate}</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-[#4A3B32]">{log.reason || 'Parking Alert'}</td>
+                        <td className="p-3 font-mono font-bold text-[#2C1A12]">{log.caller_ip}</td>
+                        <td className="p-3 font-mono text-[#7A6657]">
+                          {log.caller_phone ? log.caller_phone.replace(/(\d{2})\d{4}(\d{4})/, '$1****$2') : 'Private'}
+                        </td>
+                        <td className="p-3 text-right">
+                          {log.is_spam ? (
+                            <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800 text-[10px] font-bold uppercase tracking-wider border border-red-300">
+                              ⚠️ Spam Flagged
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider border border-emerald-300">
+                              Verified
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </section>
 
       </div>

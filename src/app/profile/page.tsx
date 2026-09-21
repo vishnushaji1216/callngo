@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { ShieldCheck, User, Mail, Phone, PhoneCall, Plus, Car, Trash2, Edit2, Download, ExternalLink, Bell, CheckCircle2, BellOff, LogOut, Copy, Check, HeartPulse, AlertCircle, Save, Mic, MicOff, PhoneOff, Hash, Unlink, QrCode, Camera, ShoppingBag, Printer, Eye, X } from 'lucide-react';
+import { ShieldCheck, User, Mail, Phone, PhoneCall, Plus, Car, Trash2, Edit2, Download, ExternalLink, Bell, CheckCircle2, BellOff, LogOut, Copy, Check, HeartPulse, AlertCircle, Save, Mic, MicOff, PhoneOff, Hash, Unlink, QrCode, Camera, ShoppingBag, Printer, Eye, X, ShieldAlert, Clock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
@@ -83,6 +83,12 @@ export default function ProfilePage() {
   const [linkingVehicle, setLinkingVehicle] = useState<any | null>(null);
   const [viewingCardVehicle, setViewingCardVehicle] = useState<Vehicle | null>(null);
 
+  // Latest Incoming Call & Spam Reporting State (Only the single most recent call is exposed for reporting)
+  const [lastCall, setLastCall] = useState<any | null>(null);
+  const [lastCallLoading, setLastCallLoading] = useState<boolean>(true);
+  const [reportingSpam, setReportingSpam] = useState<boolean>(false);
+  const [spamNotice, setSpamNotice] = useState<string | null>(null);
+
   // Push Subscription State
   const [pushEnabled, setPushEnabled] = useState<boolean>(false);
   const [pushLoading, setPushLoading] = useState<boolean>(false);
@@ -149,6 +155,46 @@ export default function ProfilePage() {
     }
   };
 
+  // Fetch only the single latest incoming call for the user
+  const fetchLastCall = async () => {
+    try {
+      setLastCallLoading(true);
+      const res = await fetch('/api/calls/last', { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok && data.lastCall) {
+        setLastCall(data.lastCall);
+      } else {
+        setLastCall(null);
+      }
+    } catch {
+      setLastCall(null);
+    } finally {
+      setLastCallLoading(false);
+    }
+  };
+
+  // Report the single latest call as spam
+  const handleReportSpam = async (logId: string) => {
+    if (!confirm('Are you sure you want to report this caller as spam? If an IP receives 4 or more spam reports within 30 days, they will be blocked from contacting any vehicle across CallNGo for 1 month.')) return;
+    try {
+      setReportingSpam(true);
+      setSpamNotice(null);
+      const res = await fetch('/api/calls/report-spam', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to report spam');
+      setSpamNotice(data.message);
+      setLastCall((prev: any) => prev ? { ...prev, is_spam: true } : null);
+    } catch (err: any) {
+      alert(err.message || 'Error reporting spam');
+    } finally {
+      setReportingSpam(false);
+    }
+  };
+
   useEffect(() => {
     setOrigin(window.location.origin);
 
@@ -166,6 +212,7 @@ export default function ProfilePage() {
         setPhoneNumber((prev) => prev || currentUser.user_metadata.phone_number);
       }
       loadUserData(currentUser.id);
+      fetchLastCall();
       setLoading(false);
     });
 
@@ -1206,6 +1253,110 @@ export default function ProfilePage() {
               </button>
             )}
           </div>
+        </section>
+
+        {/* SECTION D: LATEST INCOMING CALL & SPAM REPORTING */}
+        <section className="bg-white border border-[#E4DCD0] p-6 rounded-3xl space-y-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E4DCD0] pb-4">
+            <div>
+              <h2 className="text-lg font-bold text-[#2C1A12] flex items-center gap-2 font-serif">
+                <ShieldAlert className="w-5 h-5 text-[#B5822B]" />
+                Latest Caller & Spam Protection
+              </h2>
+              <p className="text-xs text-[#7A6657] mt-0.5">
+                Review your most recent visitor inquiry or incoming call. You can report spam if someone misused your QR sticker.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={fetchLastCall}
+              disabled={lastCallLoading}
+              className="px-3.5 py-1.5 rounded-xl bg-[#FAF6EE] hover:bg-[#F2ECE1] border border-[#E4DCD0] text-[#4A2E20] text-xs font-semibold transition flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+            >
+              <Clock className={`w-3.5 h-3.5 ${lastCallLoading ? 'animate-spin' : ''}`} />
+              <span>{lastCallLoading ? 'Checking...' : 'Refresh'}</span>
+            </button>
+          </div>
+
+          {spamNotice && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{spamNotice}</span>
+            </div>
+          )}
+
+          {lastCallLoading ? (
+            <div className="py-8 flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-[#4A2E20] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : !lastCall ? (
+            <div className="p-6 text-center rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0]">
+              <p className="text-sm font-bold text-[#2C1A12]">No recent calls or inquiries</p>
+              <p className="text-xs text-[#7A6657] mt-1">
+                When someone scans your vehicle QR sticker and attempts to contact you, details of your last caller will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-sm text-[#2C1A12]">
+                    {lastCall.car_nickname || 'Vehicle'}
+                  </span>
+                  {lastCall.car_plate && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-[#E4DCD0] font-mono text-[11px] text-[#7A6657]">
+                      {lastCall.car_plate}
+                    </span>
+                  )}
+                  <span className="text-xs text-[#7A6657]">
+                    • {new Date(lastCall.created_at).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="text-xs text-[#4A3B32]">
+                  <strong className="text-[#2C1A12]">Contact Reason: </strong>
+                  <span>{lastCall.reason || 'Parking Notification'}</span>
+                </div>
+
+                <div className="flex items-center gap-4 text-xs text-[#7A6657] flex-wrap">
+                  <div>
+                    <span>Caller IP: </span>
+                    <strong className="font-mono text-[#2C1A12]">{lastCall.caller_ip}</strong>
+                  </div>
+                  <div>
+                    <span>Caller Phone: </span>
+                    <strong className="font-mono text-[#2C1A12]">
+                      {lastCall.caller_phone ? lastCall.caller_phone.replace(/(\d{2})\d{4}(\d{4})/, '$1****$2') : 'Private/Masked'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                {lastCall.is_spam ? (
+                  <span className="px-3.5 py-2 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 shadow-xs">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Reported as Spam</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleReportSpam(lastCall.id)}
+                    disabled={reportingSpam}
+                    className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition shadow-sm flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5 text-white" />
+                    <span>{reportingSpam ? 'Reporting...' : '🚨 Report Caller as Spam'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <p className="text-[11px] text-[#7A6657] italic">
+            🛡️ Safety Policy: Only your most recent incoming caller can be reported. If an IP address receives 4 or more spam reports in a 30-day window, they are automatically blocked for 30 days across all vehicles on CallNGo.
+          </p>
         </section>
 
       </div>

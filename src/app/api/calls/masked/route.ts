@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminServerClient } from '@/lib/supabase/server';
 import { initiateMaskedCall, normalizeIndianPhone } from '@/lib/edesy';
+import { isIPBlocked, saveCallLog } from '@/lib/callLogs';
 
 // Anti-Spam Sliding Window Rate Limiter
 interface RateLimitRecord {
@@ -49,6 +50,13 @@ export async function POST(req: NextRequest) {
     const forwardedFor = req.headers.get('x-forwarded-for');
     const realIp = req.headers.get('x-real-ip');
     const clientIp = (forwardedFor ? forwardedFor.split(',')[0].trim() : realIp) || '127.0.0.1';
+
+    // 2a. Check if IP has an active 30-day spam ban
+    if (await isIPBlocked(clientIp)) {
+      return NextResponse.json({
+        error: 'Security Notice: This IP address has been temporarily suspended for 30 days due to verified spam reports.'
+      }, { status: 403 });
+    }
 
     if (checkRateLimit(`ip:${clientIp}`).blocked || checkRateLimit(`phone:${cleanCallerPhone}`).blocked) {
       return NextResponse.json({
@@ -112,7 +120,7 @@ export async function POST(req: NextRequest) {
     // Helper to log call details and caller IP into database audit trail
     const recordCallLog = async (callSid: string, status: string, isDemo = false) => {
       try {
-        await supabase.from('call_logs').insert({
+        await saveCallLog({
           car_id: car.id,
           owner_id: car.owner_id,
           caller_phone: cleanCallerPhone,
@@ -120,12 +128,12 @@ export async function POST(req: NextRequest) {
           reason: reason || 'Parking notification',
           call_sid: callSid,
           status: isDemo ? 'demo' : status,
-          created_at: new Date().toISOString()
+          car_nickname: car.nickname || 'Vehicle',
+          car_plate: car.plate_number || 'N/A'
         });
         console.log(`[Audit Log] Recorded caller IP ${clientIp} for car ${car.id}`);
       } catch (logErr) {
-        // Non-blocking if table not migrated yet
-        console.warn('[Audit Log] Notice: could not record into call_logs table:', logErr);
+        console.warn('[Audit Log] Notice: could not record into call_logs:', logErr);
       }
     };
 

@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminServerClient } from '@/lib/supabase/server';
 import { webpush } from '@/lib/vapid';
+import { isIPBlocked, saveCallLog } from '@/lib/callLogs';
 
 export async function POST(req: NextRequest) {
   try {
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const realIp = req.headers.get('x-real-ip');
+    const clientIp = (forwardedFor ? forwardedFor.split(',')[0].trim() : realIp) || '127.0.0.1';
+
+    if (await isIPBlocked(clientIp)) {
+      return NextResponse.json(
+        { error: 'Security Notice: This IP address has been temporarily suspended for 30 days due to verified spam reports.' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const { carId, callId, reason } = body;
 
@@ -19,7 +31,7 @@ export async function POST(req: NextRequest) {
     // 1. Fetch car details safely if row exists
     const { data: car } = await supabase
       .from('cars')
-      .select('id, owner_id, nickname')
+      .select('id, owner_id, nickname, plate_number')
       .eq('id', carId)
       .maybeSingle();
 
@@ -84,6 +96,22 @@ export async function POST(req: NextRequest) {
     });
 
     await Promise.all(pushPromises);
+
+    // Record inquiry into audit log
+    try {
+      await saveCallLog({
+        car_id: carId,
+        owner_id: carOwnerId || null,
+        caller_ip: clientIp,
+        reason: reason || 'Quick Message Alert',
+        call_sid: callId,
+        status: 'push_sent',
+        car_nickname: carNickname,
+        car_plate: car?.plate_number || 'N/A'
+      });
+    } catch (logErr) {
+      console.warn('[Push Send] Could not record into call_logs:', logErr);
+    }
 
     return NextResponse.json({ success: true, sent: sentCount }, { status: 200 });
   } catch (err: any) {
