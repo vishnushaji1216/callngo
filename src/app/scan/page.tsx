@@ -173,9 +173,14 @@ export default function ScanPage() {
           Home
         </Link>
 
-        <span className="font-serif font-bold text-sm text-[#2C1A12]">
-          Scan Sticker
-        </span>
+        <div className="flex items-center gap-1.5 font-serif font-bold text-sm text-[#2C1A12]">
+          <img
+            src="/logo.png"
+            alt="CallNGo Logo"
+            className="w-6 h-6 rounded-md object-contain"
+          />
+          <span>Scan Sticker</span>
+        </div>
 
         <Link
           href="/buy"

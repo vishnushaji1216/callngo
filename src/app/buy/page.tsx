@@ -17,7 +17,12 @@ export default function BuyPage() {
           Back to Home
         </Link>
 
-        <div className="flex items-center gap-1.5 font-bold text-sm tracking-tight text-black">
+        <div className="flex items-center gap-2 font-bold text-sm tracking-tight text-black">
+          <img
+            src="/logo.png"
+            alt="CallNGo Logo"
+            className="w-7 h-7 rounded-lg object-contain"
+          />
           <span className="text-black font-extrabold font-serif">CallNGo</span>
           <span className="text-xs px-2 py-0.5 rounded-full bg-[#FFDF00] text-black font-bold">
             Store
