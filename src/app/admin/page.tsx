@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ShieldCheck, Lock, Mail, Plus, Printer, LogOut, Copy, Check, RefreshCw, Unlink, Sparkles, Car, CheckCircle2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { QRStickerCard } from '@/components/QRStickerCard';
 
 export interface Sticker {
   id: string;
@@ -225,9 +226,21 @@ export default function AdminPage() {
   // 2. ADMIN DASHBOARD
   return (
     <main className="min-h-screen bg-[#F8F5EE] text-[#2C1A12] p-4 sm:p-8 flex flex-col items-center selection:bg-[#D4A254] selection:text-[#160f0b]">
-      {/* Print Styles Sheet: Formats all selected QR cards into physical printable cards */}
+      {/* Print Styles Sheet: Formats all selected QR cards into physical printable cards without clipping */}
       <style jsx global>{`
+        @page {
+          size: A4 portrait;
+          margin: 6mm;
+        }
         @media print {
+          html, body {
+            background: white !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           body * {
             visibility: hidden;
           }
@@ -238,7 +251,43 @@ export default function AdminPage() {
             position: absolute;
             left: 0;
             top: 0;
-            width: 100%;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: block !important;
+          }
+          .printable-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, 3.4in) !important;
+            gap: 0.2in !important;
+            justify-content: center !important;
+            margin: 0 auto !important;
+          }
+          .printable-grid > div {
+            padding: 0 !important;
+            margin: 0 !important;
+            display: flex !important;
+            justify-content: center !important;
+            overflow: visible !important;
+          }
+          .printable-grid > div > div {
+            transform: none !important;
+          }
+          .printable-card {
+            width: 3.4in !important;
+            min-width: 3.4in !important;
+            max-width: 3.4in !important;
+            height: 2.18in !important;
+            min-height: 2.18in !important;
+            max-height: 2.18in !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            box-shadow: none !important;
+            border: 1px solid #382016 !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .no-print {
             display: none !important;
@@ -509,63 +558,23 @@ export default function AdminPage() {
 
               {/* PRINTABLE BATCH CARDS SHEET (Targeted by window.print()) */}
               <div className="printable-sheet space-y-6 pt-4">
-                <div className="hidden print:block text-center border-b pb-4 mb-6">
-                  <h1 className="text-2xl font-bold font-serif">CALL N GO - Physical QR Sticker Cards</h1>
-                  <p className="text-xs text-gray-600">Batch Sheet Print | Total Stickers: {filteredStickers.length}</p>
+                <div className="hidden print:block text-center border-b pb-4 mb-4">
+                  <h1 className="text-xl font-bold font-serif text-[#2C1A12]">CALL N GO - Physical QR Sticker Cards</h1>
+                  <p className="text-[10px] text-gray-600">Batch Sheet Print | Total Stickers: {filteredStickers.length}</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6">
+                <div className="printable-grid grid grid-cols-1 md:grid-cols-2 gap-6 justify-items-center">
                   {filteredStickers.map((s) => {
                     const qrUrl = `${origin || 'http://localhost:3000'}/c/${s.id}`;
 
                     return (
-                      <div
-                        key={s.id}
-                        className="w-full rounded-2xl overflow-hidden border border-[#523326] shadow-md flex flex-row bg-white break-inside-avoid"
-                      >
-                        {/* Left Panel */}
-                        <div className="w-1/2 bg-[#2A1812] p-4 text-[#F5F2E6] flex flex-col items-center text-center justify-between border-r border-[#3D231A]">
-                          <div className="w-10 h-10 rounded-full border border-[#D4A254]/40 flex items-center justify-center bg-[#1E0F0A]/60 mb-2">
-                            <span className="text-lg">🚗</span>
-                          </div>
-
-                          <div className="mb-2">
-                            <h4 className="text-sm font-bold font-serif text-[#F5F2E6]">Scan the QR</h4>
-                            <h4 className="text-sm font-bold font-serif text-[#F5F2E6] underline underline-offset-2 decoration-[#D4A254]">
-                              connect the owner
-                            </h4>
-                          </div>
-
-                          <div className="px-3 py-1 rounded-full bg-[#F9F7EF] text-[#2A160F] font-bold text-[10px] flex items-center gap-2 mb-2 border border-[#EBE8D8]">
-                            <span>📞 Voice Call</span>
-                            <span>|</span>
-                            <span>🚨 Emergency</span>
-                          </div>
-
-                          <ul className="text-left text-[10px] space-y-1 text-[#E2DACD] font-serif w-full">
-                            <li>• Please move your car</li>
-                            <li>• Call in case of accident</li>
-                            <li>• Emergency contact inside</li>
-                          </ul>
-                        </div>
-
-                        {/* Right Panel with QR Code */}
-                        <div className="w-1/2 bg-[#EAE7D7] p-4 text-[#2A160F] flex flex-col items-center justify-between text-center min-h-[220px]">
-                          <div className="text-xs font-bold tracking-[0.2em] font-mono text-[#2A160F] uppercase">
-                            C A L L N G O
-                          </div>
-
-                          <div className="p-2 bg-[#EAE7D7] rounded-lg flex items-center justify-center my-1">
-                            <QRCodeSVG value={qrUrl} size={110} bgColor="#EAE7D7" fgColor="#2A160F" level="H" marginSize={1} />
-                          </div>
-
-                          <div className="text-[10px] font-mono font-bold text-[#2A160F] tracking-wider uppercase">
-                            TAG: {s.id.substring(0, 13)}
-                          </div>
-
-                          <span className="px-3 py-0.5 rounded-full bg-[#2A1711] text-[#EAE7D7] text-[9px] font-bold tracking-wider font-mono mt-1">
-                            callngo.app
-                          </span>
+                      <div key={s.id} className="w-full flex justify-center items-center py-2 overflow-x-auto">
+                        <div className="shrink-0 scale-[0.88] sm:scale-100 origin-center transition-transform">
+                          <QRStickerCard
+                            qrUrl={qrUrl}
+                            tagId={s.id}
+                            carNickname={s.nickname || undefined}
+                          />
                         </div>
                       </div>
                     );

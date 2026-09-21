@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { ShieldCheck, User, Mail, Phone, PhoneCall, Plus, Car, Trash2, Edit2, Download, ExternalLink, Bell, CheckCircle2, BellOff, LogOut, Copy, Check, HeartPulse, AlertCircle, Save, Mic, MicOff, PhoneOff, Hash, Unlink, QrCode, Camera, ShoppingBag } from 'lucide-react';
+import { ShieldCheck, User, Mail, Phone, PhoneCall, Plus, Car, Trash2, Edit2, Download, ExternalLink, Bell, CheckCircle2, BellOff, LogOut, Copy, Check, HeartPulse, AlertCircle, Save, Mic, MicOff, PhoneOff, Hash, Unlink, QrCode, Camera, ShoppingBag, Printer, Eye, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWebRTCCall } from '@/hooks/useWebRTCCall';
 import { QRScannerModal } from '@/components/QRScannerModal';
 import { ProductShopModal } from '@/components/ProductShopModal';
+import { QRStickerCard } from '@/components/QRStickerCard';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -80,6 +81,7 @@ export default function ProfilePage() {
   const [claimVehPlate, setClaimVehPlate] = useState<string>('');
   const [claimingSticker, setClaimingSticker] = useState<boolean>(false);
   const [linkingVehicle, setLinkingVehicle] = useState<any | null>(null);
+  const [viewingCardVehicle, setViewingCardVehicle] = useState<Vehicle | null>(null);
 
   // Push Subscription State
   const [pushEnabled, setPushEnabled] = useState<boolean>(false);
@@ -1113,14 +1115,25 @@ export default function ProfilePage() {
                           </p>
                         </div>
 
-                        <Link
-                          href={`/c/${v.id}`}
-                          target="_blank"
-                          className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5 text-[#D4A254]" />
-                          Open Live Caller Page
-                        </Link>
+                        <div className="flex items-center gap-2 flex-wrap shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setViewingCardVehicle(v)}
+                            className="px-3.5 py-2 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#4A2E20] border border-[#E4DCD0] font-bold text-xs transition flex items-center gap-1.5 shadow-xs"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-[#B5822B]" />
+                            View / Print QR Card
+                          </button>
+
+                          <Link
+                            href={`/c/${v.id}`}
+                            target="_blank"
+                            className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 text-[#D4A254]" />
+                            Open Live Caller Page
+                          </Link>
+                        </div>
                       </div>
                     ) : (
                       <div className="w-full p-4 rounded-2xl bg-amber-50/80 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
@@ -1213,6 +1226,58 @@ export default function ProfilePage() {
         initialName={profile?.full_name || ''}
         initialPhone={profile?.phone_number || ''}
       />
+
+      {/* VIEW / PRINT QR STICKER CARD MODAL */}
+      {viewingCardVehicle && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-[#FDFBF7] rounded-3xl border border-[#E4DCD0] shadow-2xl p-6 flex flex-col items-center text-center relative max-h-[95vh] overflow-y-auto">
+            <button
+              onClick={() => setViewingCardVehicle(null)}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-[#FAF6EE] text-[#7A6657] transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-lg font-bold font-serif text-[#2C1A12] mb-1">
+              {viewingCardVehicle.nickname} - QR Sticker Card
+            </h3>
+            <p className="text-xs text-[#7A6657] mb-6">
+              Official CallNGo physical weatherproof sticker card for windshield or dashboard.
+            </p>
+
+            {/* Sticker Card Display Area */}
+            <div id="profile-print-area" className="py-2 w-full flex justify-center items-center overflow-x-auto">
+              <div className="shrink-0 scale-[0.9] sm:scale-100 origin-center transition-transform">
+                <QRStickerCard
+                  qrUrl={`${origin || 'http://localhost:3000'}/c/${viewingCardVehicle.id}`}
+                  tagId={viewingCardVehicle.id}
+                  carNickname={viewingCardVehicle.nickname}
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="mt-6 flex items-center gap-3 w-full justify-center flex-wrap">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-6 py-2.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition shadow-md flex items-center gap-2"
+              >
+                <Printer className="w-4 h-4 text-[#D4A254]" />
+                Print Sticker Card
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewingCardVehicle(null)}
+                className="px-5 py-2.5 rounded-xl bg-white hover:bg-[#FAF6EE] border border-[#E4DCD0] text-[#4A2E20] font-bold text-xs transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
