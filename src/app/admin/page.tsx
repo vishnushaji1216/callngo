@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ShieldCheck, Lock, Mail, Plus, Printer, LogOut, Copy, Check, RefreshCw, Unlink, Sparkles, Car, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Plus, Printer, LogOut, Copy, Check, RefreshCw, Unlink, Sparkles, Car, CheckCircle2, AlertCircle, Eye, EyeOff, Wallet, ExternalLink, PhoneCall } from 'lucide-react';
 import Link from 'next/link';
 import { QRStickerCard } from '@/components/QRStickerCard';
 
@@ -34,12 +34,28 @@ export default function AdminPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [origin, setOrigin] = useState<string>('');
 
+  // Edesy Voice Masking API States (Wallet & Call Metrics)
+  const [edesyLoading, setEdesyLoading] = useState<boolean>(false);
+  const [edesyBilling, setEdesyBilling] = useState<{ balance: number; currency: string } | null>(null);
+  const [edesyStats, setEdesyStats] = useState<{
+    total_sessions: number;
+    active_sessions: number;
+    total_mappings: number;
+    total_calls: number;
+    total_minutes: number;
+    total_cost: number;
+    answered_calls: number;
+    failed_calls: number;
+  } | null>(null);
+  const [edesyError, setEdesyError] = useState<string | null>(null);
+
   useEffect(() => {
     setOrigin(window.location.origin);
     const sessionAuth = sessionStorage.getItem('callngo_admin_logged_in');
     if (sessionAuth === 'true') {
       setIsAdminLoggedIn(true);
       fetchStickers();
+      fetchEdesyData();
     } else {
       setLoading(false);
     }
@@ -58,6 +74,7 @@ export default function AdminPage() {
       setIsAdminLoggedIn(true);
       sessionStorage.setItem('callngo_admin_logged_in', 'true');
       fetchStickers();
+      fetchEdesyData();
     } else {
       setAuthError('Invalid admin email or password. (Hint: admin@gmail.com / 1234)');
     }
@@ -84,6 +101,30 @@ export default function AdminPage() {
       setMessage({ type: 'error', text: err.message || 'Failed to load stickers' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch Edesy wallet balance and usage stats
+  const fetchEdesyData = async () => {
+    try {
+      setEdesyLoading(true);
+      setEdesyError(null);
+      const res = await fetch(`/api/admin/edesy?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+      });
+      const data = await res.json();
+      if (!res.ok && !data.billing && !data.stats) {
+        throw new Error(data.error || 'Failed to fetch Edesy data');
+      }
+      if (data.billing) setEdesyBilling(data.billing);
+      if (data.stats) setEdesyStats(data.stats);
+      if (data.billingError && !data.billing) setEdesyError(data.billingError);
+    } catch (err: any) {
+      console.warn('Error fetching Edesy data:', err);
+      setEdesyError(err.message || 'Unable to connect to Edesy API');
+    } finally {
+      setEdesyLoading(false);
     }
   };
 
@@ -356,6 +397,138 @@ export default function AdminPage() {
             <span>{message.text}</span>
           </div>
         )}
+
+        {/* EDESY TELECOM WALLET & CALL METRICS */}
+        <section className="no-print bg-white border border-[#E4DCD0] p-6 rounded-3xl space-y-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E4DCD0] pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] flex items-center justify-center text-[#B5822B] shadow-xs shrink-0">
+                <Wallet className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-[#2C1A12] font-serif flex items-center gap-2 flex-wrap">
+                  <span>Edesy Number Masking API & Wallet</span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-mono font-bold uppercase">
+                    voice-api.edesy.in
+                  </span>
+                </h2>
+                <p className="text-xs text-[#7A6657] mt-0.5">
+                  Live prepaid wallet balance & call usage metrics for masked private calling.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={fetchEdesyData}
+                disabled={edesyLoading}
+                className="px-3.5 py-2 rounded-xl bg-[#FAF6EE] hover:bg-[#F2ECE1] border border-[#E4DCD0] text-[#4A2E20] text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${edesyLoading ? 'animate-spin' : ''}`} />
+                <span>{edesyLoading ? 'Checking...' : 'Refresh Balance'}</span>
+              </button>
+
+              <a
+                href="https://masking.edesy.in/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white text-xs font-bold transition shadow-sm flex items-center gap-1.5"
+              >
+                <span>Top Up Wallet</span>
+                <ExternalLink className="w-3 h-3 text-[#D4A254]" />
+              </a>
+            </div>
+          </div>
+
+          {edesyError && !edesyBilling && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>Status: {edesyError}. Check `EDESY_API_KEY` in `.env.local`.</span>
+            </div>
+          )}
+
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            {/* Box 1: Prepaid Balance */}
+            <div className="p-4 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-bold text-[#7A6657] uppercase tracking-wider">Prepaid Balance</span>
+                {edesyBilling && (
+                  <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase ${
+                    edesyBilling.balance < 5
+                      ? 'bg-red-100 text-red-800 border border-red-300'
+                      : edesyBilling.balance < 15
+                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                      : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  }`}>
+                    {edesyBilling.balance < 5 ? 'Low Balance' : 'Active'}
+                  </span>
+                )}
+              </div>
+              <div className="my-1">
+                <div className="text-2xl font-black font-mono text-[#2C1A12]">
+                  {edesyBilling ? `₹${Number(edesyBilling.balance).toFixed(2)}` : edesyLoading ? '...' : '₹0.00'}
+                </div>
+                <div className="text-[10.5px] text-[#7A6657] mt-0.5">
+                  Billed at ₹1.50 / min
+                </div>
+              </div>
+            </div>
+
+            {/* Box 2: Total Calls Done */}
+            <div className="p-4 rounded-2xl bg-white border border-[#E4DCD0] flex flex-col justify-between">
+              <span className="text-[11px] font-bold text-[#7A6657] uppercase tracking-wider">Total Calls Done</span>
+              <div className="my-1">
+                <div className="text-2xl font-black font-mono text-[#4A2E20]">
+                  {edesyStats ? edesyStats.total_calls : edesyLoading ? '...' : 0}
+                </div>
+                <div className="text-[10.5px] text-[#7A6657] mt-0.5">
+                  Total calls initiated
+                </div>
+              </div>
+            </div>
+
+            {/* Box 3: Answered Calls */}
+            <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 flex flex-col justify-between">
+              <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Answered Calls</span>
+              <div className="my-1">
+                <div className="text-2xl font-black font-mono text-emerald-900">
+                  {edesyStats ? edesyStats.answered_calls : edesyLoading ? '...' : 0}
+                </div>
+                <div className="text-[10.5px] text-emerald-700 mt-0.5">
+                  Successfully connected
+                </div>
+              </div>
+            </div>
+
+            {/* Box 4: Total Minutes */}
+            <div className="p-4 rounded-2xl bg-white border border-[#E4DCD0] flex flex-col justify-between">
+              <span className="text-[11px] font-bold text-[#7A6657] uppercase tracking-wider">Call Duration</span>
+              <div className="my-1">
+                <div className="text-2xl font-black font-mono text-[#2C1A12]">
+                  {edesyStats ? `${Number(edesyStats.total_minutes).toFixed(1)}m` : edesyLoading ? '...' : '0m'}
+                </div>
+                <div className="text-[10.5px] text-[#7A6657] mt-0.5">
+                  Total duration billed
+                </div>
+              </div>
+            </div>
+
+            {/* Box 5: Total Cost */}
+            <div className="p-4 rounded-2xl bg-white border border-[#E4DCD0] flex flex-col justify-between">
+              <span className="text-[11px] font-bold text-[#7A6657] uppercase tracking-wider">Total Cost</span>
+              <div className="my-1">
+                <div className="text-2xl font-black font-mono text-[#B5822B]">
+                  {edesyStats ? `₹${Number(edesyStats.total_cost).toFixed(2)}` : edesyLoading ? '...' : '₹0.00'}
+                </div>
+                <div className="text-[10.5px] text-[#7A6657] mt-0.5">
+                  Total telecom spend
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* TOP STATS & BATCH GENERATOR */}
         <section className="no-print grid grid-cols-1 md:grid-cols-3 gap-6">

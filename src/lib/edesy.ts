@@ -126,17 +126,65 @@ export async function getMaskedCallStatus(callSid: string): Promise<EdesyCallSta
 /**
  * Checks current wallet balance on Edesy.
  */
-export async function getWalletBalance(): Promise<{ balance: number; currency: string }> {
+export interface EdesyBillingResponse {
+  balance: number;
+  currency: string;
+}
+
+export interface EdesyUsageStats {
+  total_sessions: number;
+  active_sessions: number;
+  total_mappings: number;
+  total_calls: number;
+  total_minutes: number;
+  total_cost: number;
+  answered_calls: number;
+  failed_calls: number;
+}
+
+export async function getWalletBalance(): Promise<EdesyBillingResponse> {
   const apiKey = process.env.EDESY_API_KEY;
-  if (!apiKey) throw new Error('EDESY_API_KEY is missing');
+  if (!apiKey || apiKey === 'vp_YOUR_API_KEY_HERE') {
+    throw new Error('EDESY_API_KEY is not configured');
+  }
 
   const res = await fetch(`${EDESY_BASE_URL}/masking/billing`, {
     headers: {
       'Authorization': `Bearer ${apiKey}`
-    }
+    },
+    cache: 'no-store'
   });
 
   const json = await res.json();
   if (!res.ok) throw new Error(json?.error?.message || 'Failed to fetch billing info');
+  return json.data;
+}
+
+/**
+ * Retrieves aggregate usage statistics from Edesy.
+ */
+export async function getUsageStats(startDate?: string, endDate?: string): Promise<EdesyUsageStats> {
+  const apiKey = process.env.EDESY_API_KEY;
+  if (!apiKey || apiKey === 'vp_YOUR_API_KEY_HERE') {
+    throw new Error('EDESY_API_KEY is not configured');
+  }
+
+  let url = `${EDESY_BASE_URL}/masking/stats`;
+  const params = new URLSearchParams();
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  if (params.toString()) {
+    url += `?${params.toString()}`;
+  }
+
+  const res = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${apiKey}`
+    },
+    cache: 'no-store'
+  });
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message || 'Failed to fetch usage stats');
   return json.data;
 }
