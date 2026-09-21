@@ -16,7 +16,7 @@ export const PRODUCTS: ProductItem[] = [
     id: '1-sticker',
     name: '1 QR Sticker',
     price: 200,
-    description: 'Weatherproof & UV-resistant windshield sticker for 1 car or bike.'
+    description: 'Weatherproof & UV-resistant windshield sticker for 1 car or four wheeler.'
   },
   {
     id: '2-stickers',
@@ -30,7 +30,7 @@ export const PRODUCTS: ProductItem[] = [
     name: 'Valet Smart Card',
     price: 450,
     badge: 'Premium Card',
-    description: 'Heavy-duty matte finish NFC & QR smart card for dashboard or key fob.'
+    description: 'Heavy-duty matte finish QR smart card for dashboard.'
   }
 ];
 
