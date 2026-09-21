@@ -54,13 +54,14 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
 
   const [loadingCar, setLoadingCar] = useState<boolean>(true);
 
-  // Selected Reason (Screenshot 1)
+  // Selected Reason (Quick message options)
   const contactReasons = [
-    { id: 'lights', text: 'The lights of this car is on.', icon: '💡' },
-    { id: 'noparking', text: 'The car is in no parking.', icon: '🚫' },
-    { id: 'towed', text: 'The car is getting towed.', icon: '🚜' },
-    { id: 'window', text: 'The window or car is open.', icon: '🪟' },
-    { id: 'wrong', text: 'Something wrong with this car.', icon: '⚠️' }
+    { id: 'move', text: 'Please move your vehicle.', icon: '🚗' },
+    { id: 'accident_vehicle', text: 'An accident happened to the vehicle.', icon: '💥' },
+    { id: 'accident_driver', text: 'An accident happened to the vehicle and the driver.', icon: '🚑' },
+    { id: 'blocking', text: 'Your vehicle is blocking my way.', icon: '🚫' },
+    { id: 'window', text: 'Your vehicle window is open.', icon: '🪟' },
+    { id: 'headlights', text: 'Your vehicle’s headlights are on.', icon: '💡' }
   ];
   const [selectedReason, setSelectedReason] = useState<string>(contactReasons[0].text);
 
@@ -366,9 +367,11 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
     return (
       <main className="min-h-screen bg-[#F8F5EE] text-[#2C1A12] flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-lg bg-white border border-[#E4DCD0] rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col items-center text-center relative overflow-hidden">
-          <div className="w-16 h-16 rounded-2xl bg-[#4A2E20] text-white flex items-center justify-center text-3xl mb-4 shadow-md">
-            ✨
-          </div>
+          <img
+            src="/logo.png"
+            alt="CallNGo Logo"
+            className="w-16 h-16 rounded-2xl object-contain mb-4 shadow-md bg-[#4A2E20] p-1.5"
+          />
 
           <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold uppercase tracking-wider mb-2">
             Unclaimed Vehicle Sticker
@@ -957,7 +960,7 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
             <div className="mt-6 pt-4 border-t border-[#F4EFE6] text-center">
               <p className="text-[10px] text-gray-500 flex items-center justify-center gap-1.5 font-medium flex-wrap">
                 <span>📍 Urgent,</span>
-                <a href="#urgent" onClick={(e) => { e.preventDefault(); setShowEmergencyModal(true); }} className="hover:underline">Sampark us,</a>
+                <a href="#urgent" onClick={(e) => { e.preventDefault(); setShowEmergencyModal(true); }} className="hover:underline">CallNGo us,</a>
                 <span>or</span>
                 <a href="#report" onClick={(e) => { e.preventDefault(); alert('Feedback recorded. Thank you.'); }} className="hover:underline">Report,</a>
                 <a href="#wrong" onClick={(e) => { e.preventDefault(); alert('Report submitted to moderation team.'); }} className="hover:underline">Wrong info,</a>
