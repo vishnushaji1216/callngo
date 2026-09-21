@@ -50,6 +50,10 @@ export default function ProfilePage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [origin, setOrigin] = useState<string>('');
 
+  // Personal Profile Form State
+  const [fullName, setFullName] = useState<string>('');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+
   // Emergency Profile Form State
   const [emergencyContact, setEmergencyContact] = useState<string>('');
   const [bloodGroup, setBloodGroup] = useState<string>('O+');
@@ -116,6 +120,8 @@ export default function ProfilePage() {
 
       if (profData) {
         setProfile(profData);
+        setFullName(profData.full_name || '');
+        setPhoneNumber(profData.phone_number || '');
         setEmergencyContact(profData.emergency_contact || '');
         setBloodGroup(profData.blood_group || 'O+');
         setHealthIssues(profData.health_issues || '');
@@ -151,6 +157,12 @@ export default function ProfilePage() {
         return;
       }
       setUser(currentUser);
+      if (currentUser.user_metadata?.full_name) {
+        setFullName((prev) => prev || currentUser.user_metadata.full_name);
+      }
+      if (currentUser.user_metadata?.phone_number) {
+        setPhoneNumber((prev) => prev || currentUser.user_metadata.phone_number);
+      }
       loadUserData(currentUser.id);
       setLoading(false);
     });
@@ -168,7 +180,7 @@ export default function ProfilePage() {
     }
   }, []);
 
-  // Save Emergency / Medical Profile
+  // Save Profile & Emergency Details
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -176,20 +188,53 @@ export default function ProfilePage() {
       setSavingProfile(true);
       setMessage(null);
 
+      const cleanName = fullName.trim();
+      const cleanPhone = phoneNumber.trim();
+
+      if (!cleanName) {
+        throw new Error('Please enter your Full Name');
+      }
+      if (!cleanPhone) {
+        throw new Error('Please enter your Phone Number');
+      }
+
       const { error } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
-          emergency_contact: emergencyContact,
+          full_name: cleanName,
+          phone_number: cleanPhone,
+          emergency_contact: emergencyContact.trim(),
           blood_group: bloodGroup,
-          health_issues: healthIssues,
-          medications: medications,
-          allergies: allergies
+          health_issues: healthIssues.trim(),
+          medications: medications.trim(),
+          allergies: allergies.trim()
         });
 
       if (error) throw error;
 
-      setMessage({ type: 'success', text: 'Emergency & Medical profile updated successfully!' });
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              full_name: cleanName,
+              phone_number: cleanPhone,
+              emergency_contact: emergencyContact.trim(),
+              blood_group: bloodGroup,
+              health_issues: healthIssues.trim(),
+              medications: medications.trim(),
+              allergies: allergies.trim()
+            }
+          : {
+              id: user.id,
+              full_name: cleanName,
+              phone_number: cleanPhone,
+              emergency_contact: emergencyContact.trim(),
+              blood_group: bloodGroup
+            }
+      );
+
+      setMessage({ type: 'success', text: 'Personal details and emergency profile updated successfully!' });
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to update profile' });
     } finally {
@@ -580,7 +625,10 @@ export default function ProfilePage() {
             <div>
               <h1 className="text-xl font-bold text-[#2C1A12] tracking-tight font-serif">Owner Dashboard & Profile</h1>
               <p className="text-xs text-[#6E5A4C]">
-                Logged in as <strong className="text-[#2C1A12]">{profile?.full_name || user?.user_metadata?.full_name || 'User'}</strong>
+                Logged in as <strong className="text-[#2C1A12]">{fullName || profile?.full_name || user?.user_metadata?.full_name || 'User'}</strong>
+                {(phoneNumber || profile?.phone_number) && (
+                  <span className="ml-1.5 font-mono text-[#B5822B]">({phoneNumber || profile?.phone_number})</span>
+                )}
               </p>
             </div>
           </div>
@@ -621,88 +669,140 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* SECTION A: EMERGENCY & MEDICAL INFO (One set per user) */}
-        <section className="bg-white border border-[#E4DCD0] p-6 rounded-3xl space-y-4 shadow-sm">
+        {/* SECTION A: OWNER PROFILE & EMERGENCY INFO */}
+        <section className="bg-white border border-[#E4DCD0] p-6 rounded-3xl space-y-5 shadow-sm">
           <div className="flex items-center justify-between border-b border-[#E4DCD0] pb-3">
             <div>
               <h2 className="text-lg font-bold text-[#2C1A12] flex items-center gap-2 font-serif">
-                <HeartPulse className="w-5 h-5 text-red-600" />
-                Emergency & Medical Profile
+                <User className="w-5 h-5 text-[#B5822B]" />
+                Personal & Emergency Profile
               </h2>
               <p className="text-xs text-[#7A6657] mt-0.5">
-                Single master medical set displayed to first responders when any of your vehicle QR codes are scanned.
+                Manage your personal contact info and master emergency details displayed when your vehicle QR codes are scanned.
               </p>
             </div>
           </div>
 
-          <form onSubmit={handleSaveProfile} className="space-y-4 p-5 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0]">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Emergency Contact Number *</label>
-                <div className="relative">
-                  <PhoneCall className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
-                  <input
-                    type="tel"
-                    required
-                    value={emergencyContact}
-                    onChange={(e) => setEmergencyContact(e.target.value)}
-                    placeholder="e.g. +91 9876543210 (Family / Partner)"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                  />
-                </div>
+          <form onSubmit={handleSaveProfile} className="space-y-5 p-5 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0]">
+            
+            {/* SUB-SECTION 1: PERSONAL ACCOUNT DETAILS */}
+            <div className="space-y-3">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#B5822B] flex items-center gap-1.5 font-sans">
+                <User className="w-3.5 h-3.5" />
+                Personal Details
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Blood Group *</label>
-                <select
-                  value={bloodGroup}
-                  onChange={(e) => setBloodGroup(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B] font-bold"
-                >
-                  <option value="O+">O Positive (O+)</option>
-                  <option value="O-">O Negative (O-)</option>
-                  <option value="A+">A Positive (A+)</option>
-                  <option value="A-">A Negative (A-)</option>
-                  <option value="B+">B Positive (B+)</option>
-                  <option value="B-">B Negative (B-)</option>
-                  <option value="AB+">AB Positive (AB+)</option>
-                  <option value="AB-">AB Negative (AB-)</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Your Full Name *</label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g. Rahul Sharma"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Your Phone Number *</label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                    <input
+                      type="tel"
+                      required
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="e.g. 9876543210"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                    />
+                  </div>
+                  <span className="text-[10px] text-[#7A6657] mt-1 block">Your primary contact number registered with CallNGo.</span>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Health Issues</label>
-                <input
-                  type="text"
-                  value={healthIssues}
-                  onChange={(e) => setHealthIssues(e.target.value)}
-                  placeholder="e.g. Asthma, Diabetes, None"
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                />
+            <hr className="border-[#E4DCD0]" />
+
+            {/* SUB-SECTION 2: EMERGENCY & MEDICAL DETAILS */}
+            <div className="space-y-3">
+              <div className="text-xs font-bold uppercase tracking-wider text-red-700 flex items-center gap-1.5 font-sans">
+                <HeartPulse className="w-3.5 h-3.5" />
+                Emergency & Medical Card
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Medications</label>
-                <input
-                  type="text"
-                  value={medications}
-                  onChange={(e) => setMedications(e.target.value)}
-                  placeholder="e.g. Inhaler, Insulin, None"
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Emergency Contact Number *</label>
+                  <div className="relative">
+                    <PhoneCall className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
+                    <input
+                      type="tel"
+                      required
+                      value={emergencyContact}
+                      onChange={(e) => setEmergencyContact(e.target.value)}
+                      placeholder="e.g. +91 9876543210 (Family / Partner)"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Blood Group *</label>
+                  <select
+                    value={bloodGroup}
+                    onChange={(e) => setBloodGroup(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B] font-bold"
+                  >
+                    <option value="O+">O Positive (O+)</option>
+                    <option value="O-">O Negative (O-)</option>
+                    <option value="A+">A Positive (A+)</option>
+                    <option value="A-">A Negative (A-)</option>
+                    <option value="B+">B Positive (B+)</option>
+                    <option value="B-">B Negative (B-)</option>
+                    <option value="AB+">AB Positive (AB+)</option>
+                    <option value="AB-">AB Negative (AB-)</option>
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Allergic To</label>
-                <input
-                  type="text"
-                  value={allergies}
-                  onChange={(e) => setAllergies(e.target.value)}
-                  placeholder="e.g. Penicillin, Peanuts, None"
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Health Issues</label>
+                  <input
+                    type="text"
+                    value={healthIssues}
+                    onChange={(e) => setHealthIssues(e.target.value)}
+                    placeholder="e.g. Asthma, Diabetes, None"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Medications</label>
+                  <input
+                    type="text"
+                    value={medications}
+                    onChange={(e) => setMedications(e.target.value)}
+                    placeholder="e.g. Inhaler, Insulin, None"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Allergic To</label>
+                  <input
+                    type="text"
+                    value={allergies}
+                    onChange={(e) => setAllergies(e.target.value)}
+                    placeholder="e.g. Penicillin, Peanuts, None"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                  />
+                </div>
               </div>
             </div>
 
@@ -713,7 +813,7 @@ export default function ProfilePage() {
                 className="px-6 py-2.5 rounded-xl bg-[#4A2E20] hover:bg-[#3B2418] text-white font-bold text-xs transition shadow-md flex items-center gap-2 disabled:opacity-50"
               >
                 <Save className="w-3.5 h-3.5 text-[#D4A254]" />
-                {savingProfile ? 'Saving Profile...' : 'Save Emergency Profile'}
+                {savingProfile ? 'Saving Profile...' : 'Save Profile Details'}
               </button>
             </div>
           </form>
