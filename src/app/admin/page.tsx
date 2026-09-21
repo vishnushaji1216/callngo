@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ShieldCheck, Lock, Mail, Plus, Printer, LogOut, Copy, Check, RefreshCw, Unlink, Sparkles, Car, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Plus, Printer, LogOut, Copy, Check, RefreshCw, Unlink, Sparkles, Car, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { QRStickerCard } from '@/components/QRStickerCard';
 
@@ -21,6 +21,7 @@ export default function AdminPage() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(false);
   const [emailInput, setEmailInput] = useState<string>('');
   const [passwordInput, setPasswordInput] = useState<string>('');
+  const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string>('');
 
   // Dashboard state
@@ -200,13 +201,22 @@ export default function AdminPage() {
               <div className="relative">
                 <Lock className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
                 <input
-                  type="password"
+                  type={showAdminPassword ? 'text' : 'password'}
                   required
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
+                  className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-white border border-[#E4DCD0] text-[#2C1A12] text-sm focus:outline-none focus:border-[#B5822B]"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword(!showAdminPassword)}
+                  className="absolute right-3 top-2.5 p-1 text-[#7A6657] hover:text-[#2C1A12] transition"
+                  title={showAdminPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showAdminPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 

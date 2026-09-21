@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Mail, Lock, ChevronDown, User, Phone, ArrowRight, LogOut, CheckCircle2, BellOff, ShoppingBag, QrCode } from 'lucide-react';
+import { Mail, Lock, ChevronDown, User, Phone, ArrowRight, LogOut, CheckCircle2, BellOff, ShoppingBag, QrCode, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ProductPricingCards } from '@/components/ProductPricingCards';
@@ -20,6 +20,7 @@ export default function LandingPage() {
   const [phoneNum, setPhoneNum] = useState<string>('');
   const [loginIdentifier, setLoginIdentifier] = useState<string>(''); // Email or Phone
   const [password, setPassword] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [submittingAuth, setSubmittingAuth] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -443,13 +444,22 @@ export default function LandingPage() {
                     <div className="relative">
                       <Lock className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
                       <input
-                        type="password"
+                        type={showPassword ? 'text' : 'password'}
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
+                        className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-2.5 p-1 text-[#7A6657] hover:text-[#2C1A12] transition"
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
 
@@ -484,13 +494,22 @@ export default function LandingPage() {
                     <div className="relative">
                       <Lock className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
                       <input
-                        type="password"
+                        type={showPassword ? 'text' : 'password'}
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
+                        className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E4DCD0] text-[#2C1A12] text-xs sm:text-sm focus:outline-none focus:border-[#B5822B]"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-2.5 p-1 text-[#7A6657] hover:text-[#2C1A12] transition"
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
 
