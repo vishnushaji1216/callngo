@@ -407,10 +407,10 @@ export default function AdminPage() {
               </div>
               <div>
                 <h2 className="text-base font-bold text-[#2C1A12] font-serif flex items-center gap-2 flex-wrap">
-                  <span>Edesy Number Masking API & Wallet</span>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-mono font-bold uppercase">
+                  <span>Number Masking API & Wallet</span>
+                  {/* <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-mono font-bold uppercase">
                     voice-api.edesy.in
-                  </span>
+                  </span> */}
                 </h2>
                 <p className="text-xs text-[#7A6657] mt-0.5">
                   Live prepaid wallet balance & call usage metrics for masked private calling.
