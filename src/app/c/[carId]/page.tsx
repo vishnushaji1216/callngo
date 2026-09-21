@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useWebRTCCall } from '@/hooks/useWebRTCCall';
 import {
   Phone,
@@ -32,6 +33,7 @@ import { IOSInstallPrompt } from '@/components/iOSInstallPrompt';
 import { supabase } from '@/lib/supabase/client';
 
 export default function PublicCarPage({ params }: { params: Promise<{ carId: string }> }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const carId = resolvedParams.carId;
 
@@ -89,10 +91,11 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
 
   // Unclaimed Activation Form States
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userName, setUserName] = useState<string>('');
   const [authTab, setAuthTab] = useState<'signup' | 'signin'>('signup');
   const [fullName, setFullName] = useState<string>('');
   const [phoneNum, setPhoneNum] = useState<string>('');
-  const [email, setEmail] = useState<string>('');
+  const [loginIdentifier, setLoginIdentifier] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [claimName, setClaimName] = useState<string>('');
   const [claimModel, setClaimModel] = useState<string>('');
@@ -155,6 +158,18 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         setCurrentUser(data.user);
+        supabase
+          .from('profiles')
+          .select('full_name, phone_number')
+          .eq('id', data.user.id)
+          .maybeSingle()
+          .then(({ data: prof }) => {
+            if (prof?.full_name) {
+              setUserName(prof.full_name);
+            } else if (data.user?.user_metadata?.full_name) {
+              setUserName(data.user.user_metadata.full_name);
+            }
+          });
       }
     });
 
@@ -275,7 +290,7 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
       setSubmittingClaim(true);
       setClaimMessage(null);
 
-      if (!claimName || !claimPlate) {
+      if (!claimName.trim() || !claimPlate.trim()) {
         throw new Error('Vehicle Name and License Plate are required');
       }
 
@@ -283,15 +298,25 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
 
       if (!activeUserId) {
         if (authTab === 'signup') {
-          if (!fullName || !phoneNum || !email || !password) {
-            throw new Error('Please complete your account registration details');
+          const cleanPhone = phoneNum.replace(/[^0-9]/g, '');
+          if (!fullName.trim() || !cleanPhone || !password) {
+            throw new Error('Please enter your Full Name, Mobile Number, and Password to create an account.');
           }
 
+          if (cleanPhone.length < 10) {
+            throw new Error('Please enter a valid 10-digit mobile number.');
+          }
+
+          const internalEmail = `${cleanPhone}@callngo.in`;
+
           const { data: authData, error: authError } = await supabase.auth.signUp({
-            email,
+            email: internalEmail,
             password,
             options: {
-              data: { full_name: fullName, phone_number: phoneNum }
+              data: {
+                full_name: fullName.trim(),
+                phone_number: cleanPhone
+              }
             }
           });
 
@@ -304,21 +329,26 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
 
           await supabase.from('profiles').upsert({
             id: activeUserId,
-            full_name: fullName,
-            phone_number: phoneNum
+            full_name: fullName.trim(),
+            phone_number: cleanPhone
           });
         } else {
-          if (!email || !password) {
-            throw new Error('Please enter email and password');
+          const trimmedIdentifier = (loginIdentifier || phoneNum).trim();
+          if (!trimmedIdentifier || !password) {
+            throw new Error('Please enter your Mobile Number and Password to log in.');
           }
 
+          const emailToLogin = trimmedIdentifier.includes('@')
+            ? trimmedIdentifier
+            : `${trimmedIdentifier.replace(/[^0-9]/g, '')}@callngo.in`;
+
           const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email,
+            email: emailToLogin,
             password
           });
 
           if (authError || !authData.user) {
-            throw new Error(authError?.message || 'Login failed');
+            throw new Error(authError?.message || 'Invalid mobile number or password');
           }
 
           activeUserId = authData.user.id;
@@ -330,9 +360,9 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nickname: claimName,
-          model_number: claimModel,
-          plate_number: claimPlate,
+          nickname: claimName.trim(),
+          model_number: claimModel.trim(),
+          plate_number: claimPlate.trim(),
           userId: activeUserId
         })
       });
@@ -342,9 +372,9 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
         throw new Error(claimData.error || 'Failed to activate sticker');
       }
 
-      setClaimMessage({ type: 'success', text: '🎉 Sticker activated successfully!' });
+      setClaimMessage({ type: 'success', text: '🎉 QR Sticker activated successfully! Redirecting to your vehicle dashboard...' });
       setTimeout(() => {
-        fetchCarPublicDetails();
+        router.push('/profile');
       }, 1000);
 
     } catch (err: any) {
@@ -398,10 +428,40 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
           )}
 
           <form onSubmit={handleActivateSticker} className="w-full text-left space-y-4">
-            {!currentUser && (
+            {currentUser ? (
+              /* Already Logged In Account Badge */
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[#4A2E20] text-[#D4A254] flex items-center justify-center font-bold text-xs shadow-sm">
+                    ✓
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#7A6657] block font-medium">Linking to active account:</span>
+                    <span className="font-bold text-[#4A2E20] text-sm">
+                      {userName || currentUser.user_metadata?.full_name || currentUser.phone || currentUser.email || 'Logged In User'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    setCurrentUser(null);
+                    setUserName('');
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-amber-900 font-semibold text-xs hover:bg-amber-100 transition shadow-sm"
+                >
+                  Switch Account
+                </button>
+              </div>
+            ) : (
+              /* Step 1: Create Account or Log In */
               <div className="p-4 rounded-2xl bg-[#FAF6EE] border border-[#E4DCD0] space-y-3">
-                <div className="text-xs font-bold uppercase tracking-wider text-[#B5822B]">Step 1: Your Account</div>
-                
+                <div className="text-xs font-bold uppercase tracking-wider text-[#B5822B]">Step 1: Your Account (Required)</div>
+                <p className="text-[11px] text-[#7A6657]">
+                  Create an account or log in with your mobile number so callers can contact you when this sticker is scanned.
+                </p>
+
                 <div className="flex items-center p-1 rounded-xl bg-white border border-[#E4DCD0]">
                   <button
                     type="button"
@@ -410,7 +470,7 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
                       authTab === 'signup' ? 'bg-[#4A2E20] text-white shadow-sm' : 'text-[#7A6657]'
                     }`}
                   >
-                    Create Account
+                    Register
                   </button>
                   <button
                     type="button"
@@ -425,57 +485,64 @@ export default function PublicCarPage({ params }: { params: Promise<{ carId: str
 
                 {authTab === 'signup' ? (
                   <div className="space-y-2">
-                    <input
-                      type="text"
-                      required
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="Your Full Name *"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs"
-                    />
-                    <input
-                      type="tel"
-                      required
-                      value={phoneNum}
-                      onChange={(e) => setPhoneNum(e.target.value)}
-                      placeholder="Phone Number *"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs"
-                    />
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Email Address *"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs"
-                    />
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Password *"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs"
-                    />
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#4A3B32] mb-1">Full Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="e.g. Rahul Sharma"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs text-[#2C1A12] focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#4A3B32] mb-1">10-Digit Mobile Number *</label>
+                      <input
+                        type="tel"
+                        required
+                        value={phoneNum}
+                        onChange={(e) => setPhoneNum(e.target.value)}
+                        placeholder="e.g. 9876543210"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs text-[#2C1A12] focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#4A3B32] mb-1">Password *</label>
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Create password (min 6 characters)"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs text-[#2C1A12] focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Email Address *"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs"
-                    />
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Password *"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs"
-                    />
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#4A3B32] mb-1">Mobile Number *</label>
+                      <input
+                        type="tel"
+                        required
+                        value={loginIdentifier}
+                        onChange={(e) => setLoginIdentifier(e.target.value)}
+                        placeholder="e.g. 9876543210"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs text-[#2C1A12] focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#4A3B32] mb-1">Password *</label>
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter password"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E4DCD0] text-xs text-[#2C1A12] focus:outline-none focus:border-[#B5822B]"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
