@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import { Mail, Lock, ChevronDown, User, Phone, ArrowRight, LogOut, CheckCircle2, BellOff, ShoppingBag, QrCode } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ProductPricingCards } from '@/components/ProductPricingCards';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -300,6 +301,17 @@ export default function LandingPage() {
             </button>
           </div>
 
+        </div>
+      </section>
+
+      {/* PRICING & PRODUCTS SECTION (Directly accessible on homepage) */}
+      <section className="py-12 px-4 sm:px-8 border-t border-[#E4DCD0] bg-white flex flex-col items-center">
+        <div className="w-full max-w-5xl">
+          <ProductPricingCards
+            title="Buy CallNGo Smart QR Cards & Stickers"
+            subtitle="Get genuine weatherproof stickers and premium valet cards delivered directly to your doorstep. Request via WhatsApp or Phone!"
+            userName={userName}
+          />
         </div>
       </section>
 
