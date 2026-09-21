@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAnonServerClient } from '@/lib/supabase/server';
+import { createAdminServerClient } from '@/lib/supabase/server';
 
 export async function POST(
   req: NextRequest,
@@ -13,27 +13,24 @@ export async function POST(
 
     const { userId } = await req.json();
 
-    const supabase = createAnonServerClient();
-
-    let currentUserId = userId;
-    if (!currentUserId) {
-      const { data: authData } = await supabase.auth.getUser();
-      currentUserId = authData?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized: User ID required' }, { status: 401 });
     }
 
-    if (!currentUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const supabase = createAdminServerClient();
 
-    // Unlink vehicle by clearing owner_id and activated_at
+    // Unlink vehicle by clearing owner_id, nickname, model, plate, and activated_at
     const { error } = await supabase
       .from('cars')
       .update({
         owner_id: null,
+        nickname: null,
+        model_number: null,
+        plate_number: null,
         activated_at: null
       })
       .eq('id', carId)
-      .eq('owner_id', currentUserId);
+      .eq('owner_id', userId);
 
     if (error) {
       throw error;

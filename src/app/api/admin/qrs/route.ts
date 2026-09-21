@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAnonServerClient } from '@/lib/supabase/server';
+import { createAdminServerClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const supabase = createAnonServerClient();
+    const supabase = createAdminServerClient();
 
     const { data: cars, error } = await supabase
       .from('cars')
@@ -26,7 +28,7 @@ export async function POST(req: NextRequest) {
     const { quantity = 1 } = await req.json();
     const count = Math.max(1, Math.min(Number(quantity) || 1, 100)); // Cap between 1 and 100 per batch
 
-    const supabase = createAnonServerClient();
+    const supabase = createAdminServerClient();
 
     const newStickers = Array.from({ length: count }).map(() => ({
       id: crypto.randomUUID(),

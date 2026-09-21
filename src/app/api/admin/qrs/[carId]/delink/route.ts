@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAnonServerClient } from '@/lib/supabase/server';
+import { createAdminServerClient } from '@/lib/supabase/server';
 
 export async function POST(
   req: NextRequest,
@@ -11,10 +11,10 @@ export async function POST(
       return NextResponse.json({ error: 'Sticker ID is required' }, { status: 400 });
     }
 
-    const supabase = createAnonServerClient();
+    const supabase = createAdminServerClient();
 
     // Reset car entry to unclaimed pool
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('cars')
       .update({
         owner_id: null,
@@ -23,13 +23,14 @@ export async function POST(
         plate_number: null,
         activated_at: null
       })
-      .eq('id', carId);
+      .eq('id', carId)
+      .select();
 
     if (error) {
       throw error;
     }
 
-    return NextResponse.json({ success: true }, { status: 200 });
+    return NextResponse.json({ success: true, car: data?.[0] }, { status: 200 });
   } catch (err: any) {
     console.error('Error admin delinking sticker:', err);
     return NextResponse.json({ error: err.message || 'Server error delinking sticker' }, { status: 500 });

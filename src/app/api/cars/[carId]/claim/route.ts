@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAnonServerClient } from '@/lib/supabase/server';
+import { createAdminServerClient } from '@/lib/supabase/server';
 
 export async function POST(
   req: NextRequest,
@@ -17,7 +17,7 @@ export async function POST(
       return NextResponse.json({ error: 'Vehicle Name and License Plate are required' }, { status: 400 });
     }
 
-    const supabase = createAnonServerClient();
+    const supabase = createAdminServerClient();
 
     // 1. Check user authentication
     let currentUserId = userId;

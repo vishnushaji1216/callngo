@@ -107,7 +107,7 @@ export default function LandingPage() {
 
       const trimmedIdentifier = loginIdentifier.trim();
       if (!trimmedIdentifier || !password) {
-        throw new Error('Please enter your Phone/Email and password');
+        throw new Error('Please enter your Phone and password');
       }
 
       // If user typed a phone number, convert to the internal email format
@@ -121,7 +121,7 @@ export default function LandingPage() {
       });
 
       if (authError || !authData.user) {
-        throw new Error(authError?.message || 'Invalid phone number/email or password');
+        throw new Error(authError?.message || 'Invalid phone number or password');
       }
 
       // Redirect to Profile Page
@@ -453,7 +453,7 @@ export default function LandingPage() {
                 /* LOGIN FORM */
                 <form onSubmit={handleSignIn} className="space-y-3.5">
                   <div>
-                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Phone Number or Email *</label>
+                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1">Phone Number</label>
                     <div className="relative">
                       <Phone className="w-4 h-4 text-[#7A6657] absolute left-3 top-3" />
                       <input

@@ -70,7 +70,10 @@ export default function AdminPage() {
   const fetchStickers = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/qrs');
+      const res = await fetch(`/api/admin/qrs?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch stickers');
       setStickers(data.cars || []);
@@ -118,7 +121,16 @@ export default function AdminPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to delink sticker');
 
-      setMessage({ type: 'success', text: 'Sticker force-delinked successfully.' });
+      // Optimistically update local state so the table immediately shows it as unclaimed
+      setStickers((prev) =>
+        prev.map((s) =>
+          s.id === carId
+            ? { ...s, owner_id: null, nickname: null, model_number: null, plate_number: null, activated_at: null }
+            : s
+        )
+      );
+
+      setMessage({ type: 'success', text: 'Sticker force-delinked successfully. Vehicle details removed and QR is now in the unclaimed pool.' });
       await fetchStickers();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to delink sticker' });
