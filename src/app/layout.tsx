@@ -5,9 +5,13 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://callngo.in"),
   title: "CallNGo - Private Car Calling",
   description: "Browser-to-browser private voice calling for car owners without revealing phone numbers",
   manifest: "/manifest.json",
+  verification: {
+    google: "EF8MRDT7Rp4pTd6Wgw9ew5TBGbmuNzcUif9dv7V92so",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
